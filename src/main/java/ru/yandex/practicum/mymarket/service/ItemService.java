@@ -16,9 +16,6 @@ import ru.yandex.practicum.mymarket.repository.ItemRepository;
 
 import java.util.Map;
 
-/**
- * Поиск и просмотр товаров витрины с учётом их количества в корзине.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -27,10 +24,6 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final CartService cartService;
 
-    /**
-     * @param search     строка поиска по названию и описанию; пустая — без фильтрации
-     * @param pageNumber номер страницы, начиная с 1
-     */
     public Page<ItemDto> findItems(String search, SortType sort, int pageNumber, int pageSize) {
         Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort.toSort());
         Page<Item> items = StringUtils.hasText(search)

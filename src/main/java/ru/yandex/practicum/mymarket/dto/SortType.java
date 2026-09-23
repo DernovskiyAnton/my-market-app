@@ -2,9 +2,6 @@ package ru.yandex.practicum.mymarket.dto;
 
 import org.springframework.data.domain.Sort;
 
-/**
- * Способ сортировки товаров на витрине.
- */
 public enum SortType {
     NO(Sort.unsorted()),
     ALPHA(Sort.by("title").ascending()),

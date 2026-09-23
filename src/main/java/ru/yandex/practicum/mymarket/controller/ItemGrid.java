@@ -5,10 +5,6 @@ import ru.yandex.practicum.mymarket.dto.ItemDto;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Раскладывает товары по строкам сетки витрины. Неполная последняя строка
- * дополняется заглушками, чтобы шаблон вывел пустые ячейки.
- */
 final class ItemGrid {
 
     static final int ROW_SIZE = 3;

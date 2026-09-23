@@ -17,9 +17,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Оформление заказов из корзины и просмотр истории заказов.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -40,11 +37,6 @@ public class OrderService {
                 .orElseThrow(() -> NotFoundException.order(id));
     }
 
-    /**
-     * Эмулирует покупку: создаёт заказ из текущего содержимого корзины и очищает её.
-     *
-     * @return идентификатор созданного заказа
-     */
     @Transactional
     public long createOrderFromCart() {
         List<CartItem> cartItems = cartItemRepository.findAllByOrderByIdAsc();

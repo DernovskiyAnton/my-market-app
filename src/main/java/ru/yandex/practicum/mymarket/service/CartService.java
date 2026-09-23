@@ -18,9 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Управление содержимым корзины покупателя.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -37,10 +34,6 @@ public class CartService {
         return new CartDto(items, total);
     }
 
-    /**
-     * Возвращает количество в корзине для каждого из переданных товаров.
-     * Товары, которых нет в корзине, в результат не попадают.
-     */
     public Map<Long, Integer> getQuantities(Collection<Long> itemIds) {
         if (itemIds.isEmpty()) {
             return Map.of();

@@ -13,9 +13,6 @@ import ru.yandex.practicum.mymarket.service.ItemImportService;
 
 import java.util.List;
 
-/**
- * Загрузка списка товаров на витрину из CSV-файла вместе с изображениями.
- */
 @Controller
 @RequestMapping("/admin/items")
 @RequiredArgsConstructor

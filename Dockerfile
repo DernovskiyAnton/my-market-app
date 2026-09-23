@@ -1,10 +1,6 @@
-# syntax=docker/dockerfile:1
-
-# ---------- Сборка Executable JAR ----------
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
-# Сначала копируем только описание сборки, чтобы зависимости кешировались отдельным слоем
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
@@ -12,7 +8,6 @@ RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
 COPY src/ src/
 RUN ./mvnw -B -q package -DskipTests
 
-# ---------- Образ для запуска ----------
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 

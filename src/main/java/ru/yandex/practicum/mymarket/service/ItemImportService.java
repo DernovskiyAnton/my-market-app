@@ -17,13 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Импорт списка товаров на витрину из CSV-файла.
- * <p>
- * Формат строки: {@code title;price;image;description}, разделитель — точка с запятой.
- * Поле {@code image} — имя файла изображения (может быть пустым), описание идёт последним
- * и может содержать точку с запятой. Первая строка с заголовком {@code title;...} пропускается.
- */
 @Service
 @RequiredArgsConstructor
 public class ItemImportService {
@@ -34,11 +27,6 @@ public class ItemImportService {
     private final ItemRepository itemRepository;
     private final ImageService imageService;
 
-    /**
-     * @param csv    файл со списком товаров
-     * @param images изображения товаров, на которые ссылается CSV
-     * @return количество добавленных товаров
-     */
     @Transactional
     public int importItems(MultipartFile csv, List<MultipartFile> images) {
         images.stream().filter(image -> !image.isEmpty()).forEach(imageService::store);

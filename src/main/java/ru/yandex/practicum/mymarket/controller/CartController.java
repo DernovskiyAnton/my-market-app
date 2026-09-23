@@ -11,9 +11,6 @@ import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.CartDto;
 import ru.yandex.practicum.mymarket.service.CartService;
 
-/**
- * Корзина покупателя.
- */
 @Controller
 @RequestMapping("/cart/items")
 @RequiredArgsConstructor

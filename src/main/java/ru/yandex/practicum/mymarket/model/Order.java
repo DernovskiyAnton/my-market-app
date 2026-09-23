@@ -17,9 +17,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Оформленный заказ.
- */
 @Entity
 @Table(name = "orders")
 @Getter
@@ -45,9 +42,6 @@ public class Order {
         this.createdAt = createdAt;
     }
 
-    /**
-     * Добавляет позицию в заказ и пересчитывает итоговую сумму.
-     */
     public void addItem(OrderItem orderItem) {
         orderItem.setOrder(this);
         items.add(orderItem);

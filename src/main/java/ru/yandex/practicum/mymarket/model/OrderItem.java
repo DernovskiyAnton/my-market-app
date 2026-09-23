@@ -13,10 +13,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Позиция заказа. Название и цена товара фиксируются на момент покупки,
- * чтобы последующие изменения каталога не влияли на историю заказов.
- */
 @Entity
 @Table(name = "order_items")
 @Getter

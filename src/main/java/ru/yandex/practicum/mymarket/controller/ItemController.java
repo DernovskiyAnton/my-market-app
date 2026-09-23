@@ -18,9 +18,6 @@ import ru.yandex.practicum.mymarket.dto.SortType;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.ItemService;
 
-/**
- * Витрина товаров и страница отдельного товара.
- */
 @Controller
 @RequiredArgsConstructor
 public class ItemController {

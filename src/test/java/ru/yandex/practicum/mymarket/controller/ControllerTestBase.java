@@ -10,11 +10,6 @@ import ru.yandex.practicum.mymarket.service.ItemImportService;
 import ru.yandex.practicum.mymarket.service.ItemService;
 import ru.yandex.practicum.mymarket.service.OrderService;
 
-/**
- * Общая конфигурация тестов веб-слоя. Поднимаются все контроллеры, а сервисы
- * заменяются моками в одном месте, поэтому у всех наследников одинаковый ключ
- * кеша и контекст Spring создаётся один раз.
- */
 @WebMvcTest
 abstract class ControllerTestBase {
 

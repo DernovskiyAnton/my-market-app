@@ -10,9 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.yandex.practicum.mymarket.service.OrderService;
 
-/**
- * Оформление заказа и просмотр заказов.
- */
 @Controller
 @RequiredArgsConstructor
 public class OrderController {

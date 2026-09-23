@@ -18,9 +18,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-/**
- * Сквозной сценарий через веб-слой: витрина → корзина → покупка → заказ.
- */
 class MarketFlowIntegrationTest extends IntegrationTestBase {
 
     @Test

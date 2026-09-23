@@ -11,9 +11,6 @@ import ru.yandex.practicum.mymarket.model.Item;
 @Repository
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
-    /**
-     * Поиск товаров по вхождению строки в название или описание без учёта регистра.
-     */
     @Query("""
             select i from Item i
             where lower(i.title) like lower(concat('%', :search, '%'))

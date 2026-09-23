@@ -13,9 +13,6 @@ import ru.yandex.practicum.mymarket.service.ImageService;
 
 import java.time.Duration;
 
-/**
- * Выдача изображений товаров.
- */
 @RestController
 @RequiredArgsConstructor
 public class ImageController {

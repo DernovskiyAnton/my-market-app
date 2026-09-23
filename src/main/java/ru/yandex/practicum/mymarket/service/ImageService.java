@@ -16,15 +16,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-/**
- * Хранение и выдача изображений товаров.
- * Загруженные изображения сохраняются в каталог {@code market.images.dir};
- * изображения начального каталога лежат в classpath в директории {@code images/}.
- */
 @Service
 public class ImageService {
 
-    /** Префикс пути к изображению, который хранится в товаре и используется в URL. */
     public static final String IMAGE_PATH_PREFIX = "images/";
 
     private static final Pattern FILE_NAME_PATTERN = Pattern.compile("[\\w-][\\w.-]*");
@@ -47,11 +41,6 @@ public class ImageService {
         return bundled.exists() ? Optional.of(bundled) : Optional.empty();
     }
 
-    /**
-     * Сохраняет изображение под его исходным именем.
-     *
-     * @return путь к изображению для хранения в товаре, например {@code images/ball.jpg}
-     */
     public String store(MultipartFile file) {
         String fileName = file.getOriginalFilename();
         if (!isValidFileName(fileName)) {

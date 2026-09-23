@@ -13,9 +13,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Позиция корзины: товар и его количество.
- */
 @Entity
 @Table(name = "cart_items")
 @Getter
