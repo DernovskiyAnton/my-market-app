@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.controller;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 import ru.yandex.practicum.mymarket.exception.ItemImportException;
 
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -57,10 +59,31 @@ class ItemImportControllerTest extends ControllerTestBase {
     @Test
     void importItems_emptyFile_redirectsWithError() throws Exception {
         MockMultipartFile empty = new MockMultipartFile("file", "items.csv", "text/csv", new byte[0]);
+        when(itemImportService.importItems(any(), anyList()))
+                .thenThrow(new ItemImportException("Выберите CSV-файл со списком товаров"));
 
         mockMvc.perform(multipart("/admin/items/import").file(empty))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attributeExists("error"));
+                .andExpect(redirectedUrl("/admin/items"))
+                .andExpect(flash().attribute("error", "Выберите CSV-файл со списком товаров"));
+    }
+
+    @Test
+    void importItems_uploadTooLarge_redirectsWithError() throws Exception {
+        when(itemImportService.importItems(any(), anyList())).thenThrow(new MaxUploadSizeExceededException(1));
+
+        mockMvc.perform(multipart("/admin/items/import").file(CSV))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/items"))
+                .andExpect(flash().attribute("error", GlobalExceptionHandler.UPLOAD_TOO_LARGE_MESSAGE));
+    }
+
+    @Test
+    void importItems_missingFile_rendersBadRequestPage() throws Exception {
+        mockMvc.perform(multipart("/admin/items/import"))
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name(GlobalExceptionHandler.ERROR_VIEW))
+                .andExpect(model().attribute("message", GlobalExceptionHandler.BAD_REQUEST_MESSAGE));
 
         verifyNoInteractions(itemImportService);
     }

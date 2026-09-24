@@ -29,6 +29,9 @@ public class ItemImportService {
 
     @Transactional
     public int importItems(MultipartFile csv, List<MultipartFile> images) {
+        if (csv.isEmpty()) {
+            throw new ItemImportException("Выберите CSV-файл со списком товаров");
+        }
         images.stream().filter(image -> !image.isEmpty()).forEach(imageService::store);
         try (InputStream in = csv.getInputStream()) {
             List<Item> items = parse(in);

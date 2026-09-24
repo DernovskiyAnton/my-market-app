@@ -20,6 +20,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ItemImportServiceTest {
@@ -57,6 +58,15 @@ class ItemImportServiceTest {
                         tuple("Мяч", 2500L, "images/ball.jpg", "Кожаный мяч; размер 5"),
                         tuple("Скакалка", 600L, null, ""),
                         tuple("Кепка", 300L, "images/cap.png", ""));
+    }
+
+    @Test
+    void importItems_emptyCsv_throwsException() {
+        MockMultipartFile csv = new MockMultipartFile("file", "items.csv", "text/csv", new byte[0]);
+
+        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
+                .isInstanceOf(ItemImportException.class);
+        verifyNoInteractions(imageService, itemRepository);
     }
 
     @Test

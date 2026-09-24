@@ -38,7 +38,9 @@ class OrderControllerTest extends ControllerTestBase {
         when(orderService.createOrderFromCart()).thenThrow(new EmptyCartException());
 
         mockMvc.perform(post("/buy"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name(GlobalExceptionHandler.ERROR_VIEW))
+                .andExpect(model().attribute("message", "Невозможно оформить заказ: корзина пуста"));
     }
 
     @Test

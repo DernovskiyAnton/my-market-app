@@ -121,7 +121,10 @@ class ItemControllerTest extends ControllerTestBase {
         when(itemService.getItem(99L)).thenThrow(NotFoundException.item(99L));
 
         mockMvc.perform(get("/items/99"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(view().name(GlobalExceptionHandler.ERROR_VIEW))
+                .andExpect(model().attribute("message", "Товар с id=99 не найден"))
+                .andExpect(content().string(containsString("Товар с id=99 не найден")));
     }
 
     @Test
@@ -147,7 +150,8 @@ class ItemControllerTest extends ControllerTestBase {
     @Test
     void getItems_nonNumericPageSize_returnsBadRequest() throws Exception {
         mockMvc.perform(get("/items").param("pageSize", "abc"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name(GlobalExceptionHandler.ERROR_VIEW));
 
         verify(itemService, never()).findItems(anyString(), any(), anyInt(), anyInt());
     }
