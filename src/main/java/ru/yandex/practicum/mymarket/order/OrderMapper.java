@@ -1,9 +1,4 @@
-package ru.yandex.practicum.mymarket.mapper;
-
-import ru.yandex.practicum.mymarket.dto.OrderDto;
-import ru.yandex.practicum.mymarket.dto.OrderItemDto;
-import ru.yandex.practicum.mymarket.model.Order;
-import ru.yandex.practicum.mymarket.model.OrderItem;
+package ru.yandex.practicum.mymarket.order;
 
 public final class OrderMapper {
 

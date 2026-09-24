@@ -1,13 +1,10 @@
-package ru.yandex.practicum.mymarket.integration;
+package ru.yandex.practicum.mymarket.order;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.cart.CartAction;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
-import ru.yandex.practicum.mymarket.dto.OrderDto;
-import ru.yandex.practicum.mymarket.dto.OrderItemDto;
-import ru.yandex.practicum.mymarket.service.OrderService;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.util.List;

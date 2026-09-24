@@ -1,10 +1,8 @@
-package ru.yandex.practicum.mymarket.repository;
+package ru.yandex.practicum.mymarket.order;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.item.Item;
-import ru.yandex.practicum.mymarket.model.Order;
-import ru.yandex.practicum.mymarket.model.OrderItem;
 import ru.yandex.practicum.mymarket.support.RepositoryTestBase;
 
 import java.time.LocalDateTime;
