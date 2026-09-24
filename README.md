@@ -53,20 +53,24 @@
 
 ## Структура проекта
 
-Код разложен по слоям, внутри слоя — по модулям приложения (товары, корзина, заказы, покупка):
+Код разложен по модулям (частям) приложения, внутри каждого модуля — свои слои:
+контроллер, сервис, репозиторий, сущности, DTO и мапперы.
 
 ```
 src/main/java/ru/yandex/practicum/mymarket
-├── MyMarketAppApplication.java   точка входа
-├── config/        ClockConfig — источник времени для создания заказов
-├── controller/    ItemController, CartController, OrderController (включая POST /buy),
-│                  ImageController, ItemImportController, ItemGrid (раскладка товаров по строкам)
-├── service/       ItemService, CartService, OrderService, ImageService, ItemImportService
-├── repository/    ItemRepository, CartItemRepository, OrderRepository (Spring Data JPA)
-├── model/         JPA-сущности: Item, CartItem, Order, OrderItem
-├── dto/           ItemDto, CartDto, OrderDto, OrderItemDto, Paging, SortType, CartAction
-├── mapper/        ItemMapper, OrderMapper — преобразование сущностей в DTO
-└── exception/     NotFoundException (404), EmptyCartException (400), ItemImportException
+├── MyMarketAppApplication.java  точка входа
+├── item/        товары: Item, ItemRepository, ItemService, ItemController,
+│                ItemDto, ItemMapper, ItemGrid, Paging, SortType
+├── cart/        корзина: CartItem, CartItemRepository, CartService, CartController,
+│                CartDto, CartAction
+├── order/       заказы: Order, OrderItem, OrderRepository, OrderService, OrderController,
+│                OrderDto, OrderItemDto, OrderMapper
+├── purchase/    покупка: PurchaseService (оформляет заказ из корзины и очищает её),
+│                PurchaseController (POST /buy)
+├── image/       изображения товаров: ImageService, ImageController
+├── itemimport/  загрузка товаров из CSV: ItemImportService, ItemImportController,
+│                ItemImportException
+└── common/      общее: NotFoundException, EmptyCartException, GlobalExceptionHandler, ClockConfig
 
 src/main/resources
 ├── application.properties
@@ -77,7 +81,8 @@ src/main/resources
 ```
 
 Контроллеры работают только с сервисами и DTO, сервисы — с репозиториями и сущностями,
-в шаблоны передаются неизменяемые DTO (`record`).
+в шаблоны передаются неизменяемые DTO (`record`). Модули обращаются друг к другу через сервисы:
+например, `PurchaseService` берёт позиции из `CartService` и сохраняет заказ через `OrderService`.
 
 ## Схема базы данных
 
@@ -147,13 +152,17 @@ Maven устанавливать не нужно — в проекте есть 
 
 | Уровень | Инструменты | Классы |
 |---|---|---|
-| Модульные тесты сервисов | JUnit 5, Mockito | `service/*ServiceTest`, `controller/ItemGridTest` |
-| Слой доступа к данным | `@DataJpaTest` | `repository/*RepositoryTest` |
-| Веб-слой | `@WebMvcTest`, MockMvc, моки сервисов | `controller/*ControllerTest` |
-| Интеграционные | `@SpringBootTest`, `@AutoConfigureMockMvc` | `integration/*IntegrationTest` |
+| Модульные тесты сервисов | JUnit 5, Mockito | `*ServiceTest`, `ItemGridTest` |
+| Слой доступа к данным | `@DataJpaTest` | `*RepositoryTest` |
+| Веб-слой | `@WebMvcTest`, MockMvc, моки сервисов | `*ControllerTest` |
+| Интеграционные | `@SpringBootTest`, `@AutoConfigureMockMvc` | `*IntegrationTest`, `MyMarketAppApplicationTests` |
+
+Тесты лежат в тех же модулях, что и тестируемый код (`item/`, `cart/`, `order/`, `purchase/`,
+`image/`, `itemimport/`). Сквозной сценарий «витрина → корзина → покупка → заказ» —
+`MarketFlowIntegrationTest` в корневом пакете.
 
 Для максимального переиспользования контекстов у каждого вида тестов есть базовый класс
-(`RepositoryTestBase`, `ControllerTestBase`, `IntegrationTestBase`), в котором собрана вся
+в пакете `support` (`RepositoryTestBase`, `ControllerTestBase`, `IntegrationTestBase`), в котором собрана вся
 конфигурация, включая все `@MockitoBean`. Наследники не добавляют своей конфигурации, поэтому
 Spring TestContext Framework создаёт всего три контекста на весь прогон и берёт их из кеша.
 Интеграционные тесты помечены `@Transactional` и откатывают изменения после каждого теста.
