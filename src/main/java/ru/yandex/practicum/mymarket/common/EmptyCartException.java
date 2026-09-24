@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.exception;
+package ru.yandex.practicum.mymarket.common;
 
 public class EmptyCartException extends RuntimeException {
 

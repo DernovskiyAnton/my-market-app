@@ -1,10 +1,11 @@
 package ru.yandex.practicum.mymarket.controller;
 
 import org.junit.jupiter.api.Test;
+import ru.yandex.practicum.mymarket.common.EmptyCartException;
+import ru.yandex.practicum.mymarket.common.GlobalExceptionHandler;
+import ru.yandex.practicum.mymarket.common.NotFoundException;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
 import ru.yandex.practicum.mymarket.dto.OrderItemDto;
-import ru.yandex.practicum.mymarket.exception.EmptyCartException;
-import ru.yandex.practicum.mymarket.exception.NotFoundException;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.common;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -11,9 +11,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import ru.yandex.practicum.mymarket.exception.EmptyCartException;
 import ru.yandex.practicum.mymarket.exception.ItemImportException;
-import ru.yandex.practicum.mymarket.exception.NotFoundException;
 
 import java.util.Map;
 
@@ -21,10 +19,10 @@ import java.util.Map;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    static final String ERROR_VIEW = "error";
-    static final String IMPORT_PAGE_REDIRECT = "redirect:/admin/items";
-    static final String BAD_REQUEST_MESSAGE = "Некорректные параметры запроса";
-    static final String UPLOAD_TOO_LARGE_MESSAGE = "Размер загружаемых файлов превышает допустимый";
+    public static final String ERROR_VIEW = "error";
+    public static final String IMPORT_PAGE_REDIRECT = "redirect:/admin/items";
+    public static final String BAD_REQUEST_MESSAGE = "Некорректные параметры запроса";
+    public static final String UPLOAD_TOO_LARGE_MESSAGE = "Размер загружаемых файлов превышает допустимый";
 
     @ExceptionHandler(NotFoundException.class)
     public ModelAndView handleNotFound(NotFoundException e) {
