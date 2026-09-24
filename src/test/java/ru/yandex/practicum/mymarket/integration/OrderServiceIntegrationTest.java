@@ -8,6 +8,7 @@ import ru.yandex.practicum.mymarket.dto.OrderItemDto;
 import ru.yandex.practicum.mymarket.exception.EmptyCartException;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.OrderService;
+import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.util.List;
 

@@ -5,6 +5,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 import ru.yandex.practicum.mymarket.exception.ItemImportException;
+import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;
 

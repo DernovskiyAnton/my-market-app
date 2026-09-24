@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.integration;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
+import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.util.List;
 

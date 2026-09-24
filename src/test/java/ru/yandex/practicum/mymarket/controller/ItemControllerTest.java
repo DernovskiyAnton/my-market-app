@@ -8,6 +8,7 @@ import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.Paging;
 import ru.yandex.practicum.mymarket.dto.SortType;
 import ru.yandex.practicum.mymarket.exception.NotFoundException;
+import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;
 

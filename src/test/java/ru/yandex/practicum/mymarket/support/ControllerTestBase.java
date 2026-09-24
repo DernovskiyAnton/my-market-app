@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.support;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -11,7 +11,7 @@ import ru.yandex.practicum.mymarket.service.ItemService;
 import ru.yandex.practicum.mymarket.service.OrderService;
 
 @WebMvcTest
-abstract class ControllerTestBase {
+public abstract class ControllerTestBase {
 
     @Autowired
     protected MockMvc mockMvc;

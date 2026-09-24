@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.SortType;
 import ru.yandex.practicum.mymarket.service.ItemService;
+import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.nio.charset.StandardCharsets;
 

@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.controller;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
+import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.Optional;
 
