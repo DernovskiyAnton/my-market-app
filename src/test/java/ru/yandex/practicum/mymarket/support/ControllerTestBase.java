@@ -7,6 +7,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.item.ItemService;
 import ru.yandex.practicum.mymarket.order.OrderService;
+import ru.yandex.practicum.mymarket.purchase.PurchaseService;
 import ru.yandex.practicum.mymarket.service.ImageService;
 import ru.yandex.practicum.mymarket.service.ItemImportService;
 
@@ -24,6 +25,9 @@ public abstract class ControllerTestBase {
 
     @MockitoBean
     protected OrderService orderService;
+
+    @MockitoBean
+    protected PurchaseService purchaseService;
 
     @MockitoBean
     protected ImageService imageService;

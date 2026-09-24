@@ -5,23 +5,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
-
-    @PostMapping("/buy")
-    public String buy(RedirectAttributes redirectAttributes) {
-        long orderId = orderService.createOrderFromCart();
-        redirectAttributes.addAttribute("id", orderId);
-        redirectAttributes.addAttribute("newOrder", true);
-        return "redirect:/orders/{id}";
-    }
 
     @GetMapping("/orders")
     public String getOrders(Model model) {

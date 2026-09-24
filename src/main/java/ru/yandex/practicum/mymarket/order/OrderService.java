@@ -3,14 +3,8 @@ package ru.yandex.practicum.mymarket.order;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.yandex.practicum.mymarket.cart.CartItem;
-import ru.yandex.practicum.mymarket.cart.CartItemRepository;
-import ru.yandex.practicum.mymarket.cart.CartService;
-import ru.yandex.practicum.mymarket.common.EmptyCartException;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -19,9 +13,6 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final CartItemRepository cartItemRepository;
-    private final CartService cartService;
-    private final Clock clock;
 
     public List<OrderDto> findAll() {
         return orderRepository.findAllByOrderByIdDesc().stream().map(OrderMapper::toDto).toList();
@@ -34,15 +25,7 @@ public class OrderService {
     }
 
     @Transactional
-    public long createOrderFromCart() {
-        List<CartItem> cartItems = cartItemRepository.findAllByOrderByIdAsc();
-        if (cartItems.isEmpty()) {
-            throw new EmptyCartException();
-        }
-        Order order = new Order(LocalDateTime.now(clock));
-        cartItems.forEach(cartItem -> order.addItem(new OrderItem(cartItem.getItem(), cartItem.getQuantity())));
-        Order saved = orderRepository.save(order);
-        cartService.clear();
-        return saved.getId();
+    public long create(Order order) {
+        return orderRepository.save(order).getId();
     }
 }

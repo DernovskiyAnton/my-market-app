@@ -22,8 +22,12 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
 
+    public List<CartItem> getCartItems() {
+        return cartItemRepository.findAllByOrderByIdAsc();
+    }
+
     public CartDto getCart() {
-        List<ItemDto> items = cartItemRepository.findAllByOrderByIdAsc().stream()
+        List<ItemDto> items = getCartItems().stream()
                 .map(cartItem -> ItemMapper.toDto(cartItem.getItem(), cartItem.getQuantity()))
                 .toList();
         long total = items.stream().mapToLong(item -> item.price() * item.count()).sum();

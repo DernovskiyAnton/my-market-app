@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.integration;
+package ru.yandex.practicum.mymarket;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;

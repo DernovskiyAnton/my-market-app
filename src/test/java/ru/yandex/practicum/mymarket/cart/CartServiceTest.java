@@ -120,6 +120,14 @@ class CartServiceTest {
     }
 
     @Test
+    void getCartItems_returnsCartItemsFromRepository() {
+        List<CartItem> cartItems = List.of(new CartItem(item(1L, 100), 2));
+        when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(cartItems);
+
+        assertThat(cartService.getCartItems()).isSameAs(cartItems);
+    }
+
+    @Test
     void getCart_returnsItemsAndTotal() {
         when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(List.of(
                 new CartItem(item(1L, 100), 2),

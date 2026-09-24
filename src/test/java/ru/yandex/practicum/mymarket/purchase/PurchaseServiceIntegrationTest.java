@@ -1,10 +1,13 @@
-package ru.yandex.practicum.mymarket.order;
+package ru.yandex.practicum.mymarket.purchase;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.cart.CartAction;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
+import ru.yandex.practicum.mymarket.order.OrderDto;
+import ru.yandex.practicum.mymarket.order.OrderItemDto;
+import ru.yandex.practicum.mymarket.order.OrderService;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.util.List;
@@ -12,7 +15,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class OrderServiceIntegrationTest extends IntegrationTestBase {
+class PurchaseServiceIntegrationTest extends IntegrationTestBase {
+
+    @Autowired
+    private PurchaseService purchaseService;
 
     @Autowired
     private OrderService orderService;
@@ -21,12 +27,12 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     private CartService cartService;
 
     @Test
-    void createOrderFromCart_savesOrderAndClearsCart() {
+    void buy_savesOrderAndClearsCart() {
         cartService.changeQuantity(1L, CartAction.PLUS);
         cartService.changeQuantity(1L, CartAction.PLUS);
         cartService.changeQuantity(3L, CartAction.PLUS);
 
-        long orderId = orderService.createOrderFromCart();
+        long orderId = purchaseService.buy();
 
         OrderDto order = orderService.getOrder(orderId);
         assertThat(order.items()).containsExactly(
@@ -38,16 +44,16 @@ class OrderServiceIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void createOrderFromCart_emptyCart_throwsException() {
-        assertThatThrownBy(() -> orderService.createOrderFromCart()).isInstanceOf(EmptyCartException.class);
+    void buy_emptyCart_throwsException() {
+        assertThatThrownBy(() -> purchaseService.buy()).isInstanceOf(EmptyCartException.class);
     }
 
     @Test
-    void findAll_returnsNewestOrdersFirst() {
+    void buy_severalTimes_ordersListedNewestFirst() {
         cartService.changeQuantity(1L, CartAction.PLUS);
-        long first = orderService.createOrderFromCart();
+        long first = purchaseService.buy();
         cartService.changeQuantity(2L, CartAction.PLUS);
-        long second = orderService.createOrderFromCart();
+        long second = purchaseService.buy();
 
         List<Long> ids = orderService.findAll().stream().map(OrderDto::id).toList();
 
