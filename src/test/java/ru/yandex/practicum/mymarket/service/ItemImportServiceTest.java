@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import ru.yandex.practicum.mymarket.exception.ItemImportException;
+import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 

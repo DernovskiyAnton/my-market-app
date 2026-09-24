@@ -5,10 +5,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.mymarket.cart.CartService;
+import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.ItemService;
 import ru.yandex.practicum.mymarket.order.OrderService;
 import ru.yandex.practicum.mymarket.purchase.PurchaseService;
-import ru.yandex.practicum.mymarket.service.ImageService;
 import ru.yandex.practicum.mymarket.service.ItemImportService;
 
 @WebMvcTest

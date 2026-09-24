@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.image;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
