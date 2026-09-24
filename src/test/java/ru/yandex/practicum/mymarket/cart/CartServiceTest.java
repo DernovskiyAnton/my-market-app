@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.service;
+package ru.yandex.practicum.mymarket.cart;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -7,12 +7,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.dto.CartDto;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
-import ru.yandex.practicum.mymarket.model.CartItem;
-import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 
 import java.util.List;
 import java.util.Map;

@@ -3,9 +3,9 @@ package ru.yandex.practicum.mymarket.item;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import ru.yandex.practicum.mymarket.cart.CartAction;
 import ru.yandex.practicum.mymarket.common.GlobalExceptionHandler;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;

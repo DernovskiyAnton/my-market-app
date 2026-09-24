@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.cart;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -7,9 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.dto.CartDto;
-import ru.yandex.practicum.mymarket.service.CartService;
 
 @Controller
 @RequestMapping("/cart/items")

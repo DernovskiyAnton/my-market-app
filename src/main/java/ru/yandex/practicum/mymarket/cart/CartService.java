@@ -1,17 +1,13 @@
-package ru.yandex.practicum.mymarket.service;
+package ru.yandex.practicum.mymarket.cart;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.dto.CartDto;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemDto;
 import ru.yandex.practicum.mymarket.item.ItemMapper;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
-import ru.yandex.practicum.mymarket.model.CartItem;
-import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,7 +24,7 @@ public class CartService {
 
     public CartDto getCart() {
         List<ItemDto> items = cartItemRepository.findAllByOrderByIdAsc().stream()
-                .map(ItemMapper::toDto)
+                .map(cartItem -> ItemMapper.toDto(cartItem.getItem(), cartItem.getQuantity()))
                 .toList();
         long total = items.stream().mapToLong(item -> item.price() * item.count()).sum();
         return new CartDto(items, total);

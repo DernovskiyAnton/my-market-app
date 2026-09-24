@@ -1,8 +1,6 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.cart;
 
 import org.junit.jupiter.api.Test;
-import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.dto.CartDto;
 import ru.yandex.practicum.mymarket.item.ItemDto;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 

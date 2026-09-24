@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.dto;
+package ru.yandex.practicum.mymarket.cart;
 
 import ru.yandex.practicum.mymarket.item.ItemDto;
 

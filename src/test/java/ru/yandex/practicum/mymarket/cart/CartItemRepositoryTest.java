@@ -1,10 +1,9 @@
-package ru.yandex.practicum.mymarket.repository;
+package ru.yandex.practicum.mymarket.cart;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.item.Item;
-import ru.yandex.practicum.mymarket.model.CartItem;
 import ru.yandex.practicum.mymarket.support.RepositoryTestBase;
 
 import java.util.List;

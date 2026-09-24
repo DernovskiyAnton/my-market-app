@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.service.CartService;
+import ru.yandex.practicum.mymarket.cart.CartAction;
+import ru.yandex.practicum.mymarket.cart.CartService;
 
 @Controller
 @RequiredArgsConstructor
