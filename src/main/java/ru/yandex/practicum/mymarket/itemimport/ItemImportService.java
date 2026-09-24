@@ -32,11 +32,15 @@ public class ItemImportService {
         if (csv.isEmpty()) {
             throw new ItemImportException("Выберите CSV-файл со списком товаров");
         }
+        List<Item> items = readItems(csv);
+        itemRepository.saveAll(items);
         images.stream().filter(image -> !image.isEmpty()).forEach(imageService::store);
+        return items.size();
+    }
+
+    private List<Item> readItems(MultipartFile csv) {
         try (InputStream in = csv.getInputStream()) {
-            List<Item> items = parse(in);
-            itemRepository.saveAll(items);
-            return items.size();
+            return parse(in);
         } catch (IOException e) {
             throw new ItemImportException("Не удалось прочитать файл " + csv.getOriginalFilename(), e);
         }

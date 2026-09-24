@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.itemimport;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.mock.web.MockMultipartFile;
 import ru.yandex.practicum.mymarket.item.ItemDto;
@@ -10,6 +11,7 @@ import ru.yandex.practicum.mymarket.item.SortType;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +24,9 @@ class ItemImportIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private ItemService itemService;
+
+    @Value("${market.images.dir}")
+    private Path imagesDir;
 
     @Test
     void importItems_addsItemsToCatalogAndStoresImages() throws Exception {
@@ -46,15 +51,19 @@ class ItemImportIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void importItems_invalidCsv_doesNotChangeCatalog() throws Exception {
+    void importItems_invalidCsv_doesNotChangeCatalogAndStoreImages() throws Exception {
         long before = itemService.findItems("", SortType.NO, 1, 100).getTotalElements();
         MockMultipartFile csv = new MockMultipartFile("file", "items.csv", "text/csv",
-                "Товар;100;;ок\nПлохой;не число;;".getBytes(StandardCharsets.UTF_8));
+                "Товар;100;rejected.png;ок\nПлохой;не число;;".getBytes(StandardCharsets.UTF_8));
+        MockMultipartFile image = new MockMultipartFile("images", "rejected.png", "image/png", new byte[]{1});
 
-        mockMvc.perform(multipart("/admin/items/import").file(csv))
+        mockMvc.perform(multipart("/admin/items/import").file(csv).file(image))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("error"));
 
         assertThat(itemService.findItems("", SortType.NO, 1, 100).getTotalElements()).isEqualTo(before);
+        assertThat(imagesDir.resolve("rejected.png")).doesNotExist();
+        mockMvc.perform(get("/images/rejected.png"))
+                .andExpect(status().isNotFound());
     }
 }

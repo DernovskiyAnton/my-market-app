@@ -3,6 +3,7 @@ package ru.yandex.practicum.mymarket.itemimport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -49,9 +51,10 @@ class ItemImportServiceTest {
         int imported = itemImportService.importItems(csv, List.of(image));
 
         assertThat(imported).isEqualTo(3);
-        verify(imageService).store(image);
         ArgumentCaptor<List<Item>> captor = ArgumentCaptor.forClass(List.class);
-        verify(itemRepository).saveAll(captor.capture());
+        InOrder inOrder = inOrder(itemRepository, imageService);
+        inOrder.verify(itemRepository).saveAll(captor.capture());
+        inOrder.verify(imageService).store(image);
         assertThat(captor.getValue())
                 .extracting(Item::getTitle, Item::getPrice, Item::getImgPath, Item::getDescription)
                 .containsExactly(
@@ -77,6 +80,17 @@ class ItemImportServiceTest {
                 .isInstanceOf(ItemImportException.class)
                 .hasMessageContaining("Строка 1");
         verify(itemRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void importItems_invalidCsv_doesNotStoreImages() {
+        MockMultipartFile csv = csv("Мяч;100;ball.jpg;описание\nКепка;дорого;cap.png;описание");
+        MockMultipartFile image = new MockMultipartFile("images", "ball.jpg", "image/jpeg", new byte[]{1});
+
+        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of(image)))
+                .isInstanceOf(ItemImportException.class)
+                .hasMessageContaining("Строка 2");
+        verifyNoInteractions(imageService, itemRepository);
     }
 
     @Test
