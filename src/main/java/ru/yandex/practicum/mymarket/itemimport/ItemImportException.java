@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.exception;
+package ru.yandex.practicum.mymarket.itemimport;
 
 public class ItemImportException extends RuntimeException {
 

@@ -7,9 +7,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.ItemService;
+import ru.yandex.practicum.mymarket.itemimport.ItemImportService;
 import ru.yandex.practicum.mymarket.order.OrderService;
 import ru.yandex.practicum.mymarket.purchase.PurchaseService;
-import ru.yandex.practicum.mymarket.service.ItemImportService;
 
 @WebMvcTest
 public abstract class ControllerTestBase {

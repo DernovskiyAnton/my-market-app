@@ -6,7 +6,7 @@ import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import ru.yandex.practicum.mymarket.exception.ItemImportException;
+import ru.yandex.practicum.mymarket.itemimport.ItemImportException;
 
 import java.io.IOException;
 import java.io.InputStream;
