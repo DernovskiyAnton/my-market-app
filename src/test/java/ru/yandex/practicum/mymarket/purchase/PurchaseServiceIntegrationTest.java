@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.purchase;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.cart.CartAction;
@@ -26,19 +27,28 @@ class PurchaseServiceIntegrationTest extends IntegrationTestBase {
     @Autowired
     private CartService cartService;
 
+    private long ballId;
+    private long racketId;
+
+    @BeforeEach
+    void setUp() {
+        ballId = createItem("Тестовый мяч", 1000).getId();
+        racketId = createItem("Тестовая ракетка", 4000).getId();
+    }
+
     @Test
     void buy_savesOrderAndClearsCart() {
-        cartService.changeQuantity(1L, CartAction.PLUS);
-        cartService.changeQuantity(1L, CartAction.PLUS);
-        cartService.changeQuantity(3L, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
+        cartService.changeQuantity(racketId, CartAction.PLUS);
 
         long orderId = purchaseService.buy();
 
         OrderDto order = orderService.getOrder(orderId);
         assertThat(order.items()).containsExactly(
-                new OrderItemDto(1L, "Футбольный мяч", 2500, 2),
-                new OrderItemDto(3L, "Теннисная ракетка", 5400, 1));
-        assertThat(order.totalSum()).isEqualTo(2 * 2500 + 5400);
+                new OrderItemDto(ballId, "Тестовый мяч", 1000, 2),
+                new OrderItemDto(racketId, "Тестовая ракетка", 4000, 1));
+        assertThat(order.totalSum()).isEqualTo(2 * 1000 + 4000);
         assertThat(cartService.getCart().items()).isEmpty();
         assertThat(orderService.findAll()).extracting(OrderDto::id).contains(orderId);
     }
@@ -50,9 +60,9 @@ class PurchaseServiceIntegrationTest extends IntegrationTestBase {
 
     @Test
     void buy_severalTimes_ordersListedNewestFirst() {
-        cartService.changeQuantity(1L, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
         long first = purchaseService.buy();
-        cartService.changeQuantity(2L, CartAction.PLUS);
+        cartService.changeQuantity(racketId, CartAction.PLUS);
         long second = purchaseService.buy();
 
         List<Long> ids = orderService.findAll().stream().map(OrderDto::id).toList();

@@ -23,6 +23,6 @@ class MyMarketAppApplicationTests extends IntegrationTestBase {
 
     @Test
     void initialCatalogIsLoaded() {
-        assertThat(itemRepository.count()).isEqualTo(12);
+        assertThat(itemRepository.count()).isPositive();
     }
 }

@@ -1,5 +1,6 @@
 package ru.yandex.practicum.mymarket.cart;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.item.ItemDto;
@@ -18,30 +19,38 @@ class CartServiceIntegrationTest extends IntegrationTestBase {
     @Autowired
     private ItemService itemService;
 
+    private long ballId;
+    private long ropeId;
+
+    @BeforeEach
+    void setUp() {
+        ballId = createItem("Тестовый мяч", 1000).getId();
+        ropeId = createItem("Тестовая скакалка", 300).getId();
+    }
+
     @Test
     void changeQuantity_updatesCartAndCatalogCounts() {
-        cartService.changeQuantity(1L, CartAction.PLUS);
-        cartService.changeQuantity(1L, CartAction.PLUS);
-        cartService.changeQuantity(4L, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
+        cartService.changeQuantity(ropeId, CartAction.PLUS);
 
         CartDto cart = cartService.getCart();
         assertThat(cart.items()).extracting(ItemDto::id, ItemDto::count)
-                .containsExactly(tuple(1L, 2), tuple(4L, 1));
-        assertThat(cart.total()).isEqualTo(2 * 2500 + 600);
-        assertThat(itemService.getItem(1L).count()).isEqualTo(2);
-        assertThat(itemService.findItems("", SortType.NO, 1, 5).getContent())
-                .filteredOn(item -> item.id() == 4L)
+                .containsExactly(tuple(ballId, 2), tuple(ropeId, 1));
+        assertThat(cart.total()).isEqualTo(2 * 1000 + 300);
+        assertThat(itemService.getItem(ballId).count()).isEqualTo(2);
+        assertThat(itemService.findItems("Тестовая скакалка", SortType.NO, 1, 5).getContent())
                 .singleElement().extracting(ItemDto::count).isEqualTo(1);
     }
 
     @Test
     void changeQuantity_minusAndDelete_removeItemsFromCart() {
-        cartService.changeQuantity(1L, CartAction.PLUS);
-        cartService.changeQuantity(2L, CartAction.PLUS);
-        cartService.changeQuantity(2L, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS);
+        cartService.changeQuantity(ropeId, CartAction.PLUS);
+        cartService.changeQuantity(ropeId, CartAction.PLUS);
 
-        cartService.changeQuantity(1L, CartAction.MINUS);
-        cartService.changeQuantity(2L, CartAction.DELETE);
+        cartService.changeQuantity(ballId, CartAction.MINUS);
+        cartService.changeQuantity(ropeId, CartAction.DELETE);
 
         assertThat(cartService.getCart().items()).isEmpty();
         assertThat(cartService.getCart().total()).isZero();
