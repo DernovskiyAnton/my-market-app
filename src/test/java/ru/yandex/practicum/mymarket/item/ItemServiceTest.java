@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.service;
+package ru.yandex.practicum.mymarket.item;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,10 +10,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.SortType;
-import ru.yandex.practicum.mymarket.model.Item;
-import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.service.CartService;
 
 import java.util.List;
 import java.util.Map;

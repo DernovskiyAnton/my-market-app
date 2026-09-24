@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.item;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -12,11 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.yandex.practicum.mymarket.dto.CartAction;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.Paging;
-import ru.yandex.practicum.mymarket.dto.SortType;
 import ru.yandex.practicum.mymarket.service.CartService;
-import ru.yandex.practicum.mymarket.service.ItemService;
 
 @Controller
 @RequiredArgsConstructor

@@ -3,7 +3,7 @@ package ru.yandex.practicum.mymarket.controller;
 import org.junit.jupiter.api.Test;
 import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.CartDto;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
+import ru.yandex.practicum.mymarket.item.ItemDto;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;

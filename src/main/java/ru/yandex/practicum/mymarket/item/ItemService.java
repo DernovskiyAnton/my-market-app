@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.service;
+package ru.yandex.practicum.mymarket.item;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -8,11 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.SortType;
-import ru.yandex.practicum.mymarket.mapper.ItemMapper;
-import ru.yandex.practicum.mymarket.model.Item;
-import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.service.CartService;
 
 import java.util.Map;
 

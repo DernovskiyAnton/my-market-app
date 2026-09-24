@@ -4,9 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.mock.web.MockMultipartFile;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.SortType;
-import ru.yandex.practicum.mymarket.service.ItemService;
+import ru.yandex.practicum.mymarket.item.ItemDto;
+import ru.yandex.practicum.mymarket.item.ItemService;
+import ru.yandex.practicum.mymarket.item.SortType;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import java.nio.charset.StandardCharsets;

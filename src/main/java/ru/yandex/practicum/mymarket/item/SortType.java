@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.dto;
+package ru.yandex.practicum.mymarket.item;
 
 import org.springframework.data.domain.Sort;
 

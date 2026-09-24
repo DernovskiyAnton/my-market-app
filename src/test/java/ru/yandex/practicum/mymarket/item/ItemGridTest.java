@@ -1,7 +1,6 @@
-package ru.yandex.practicum.mymarket.controller;
+package ru.yandex.practicum.mymarket.item;
 
 import org.junit.jupiter.api.Test;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
 
 import java.util.List;
 import java.util.stream.LongStream;

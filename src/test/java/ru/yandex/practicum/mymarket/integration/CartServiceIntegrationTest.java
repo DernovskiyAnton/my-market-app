@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.yandex.practicum.mymarket.dto.CartAction;
 import ru.yandex.practicum.mymarket.dto.CartDto;
-import ru.yandex.practicum.mymarket.dto.ItemDto;
-import ru.yandex.practicum.mymarket.dto.SortType;
+import ru.yandex.practicum.mymarket.item.ItemDto;
+import ru.yandex.practicum.mymarket.item.ItemService;
+import ru.yandex.practicum.mymarket.item.SortType;
 import ru.yandex.practicum.mymarket.service.CartService;
-import ru.yandex.practicum.mymarket.service.ItemService;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
 import static org.assertj.core.api.Assertions.assertThat;

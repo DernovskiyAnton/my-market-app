@@ -1,11 +1,9 @@
-package ru.yandex.practicum.mymarket.repository;
+package ru.yandex.practicum.mymarket.item;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import ru.yandex.practicum.mymarket.dto.SortType;
-import ru.yandex.practicum.mymarket.model.Item;
 import ru.yandex.practicum.mymarket.support.RepositoryTestBase;
 
 import java.util.Comparator;

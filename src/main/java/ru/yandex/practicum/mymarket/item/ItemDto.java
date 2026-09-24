@@ -1,4 +1,4 @@
-package ru.yandex.practicum.mymarket.dto;
+package ru.yandex.practicum.mymarket.item;
 
 public record ItemDto(long id, String title, String description, String imgPath, long price, int count) {
 

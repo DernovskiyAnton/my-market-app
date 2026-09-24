@@ -8,8 +8,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import ru.yandex.practicum.mymarket.exception.ItemImportException;
-import ru.yandex.practicum.mymarket.model.Item;
-import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

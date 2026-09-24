@@ -1,6 +1,4 @@
-package ru.yandex.practicum.mymarket.controller;
-
-import ru.yandex.practicum.mymarket.dto.ItemDto;
+package ru.yandex.practicum.mymarket.item;
 
 import java.util.ArrayList;
 import java.util.List;

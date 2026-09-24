@@ -1,8 +1,6 @@
-package ru.yandex.practicum.mymarket.mapper;
+package ru.yandex.practicum.mymarket.item;
 
-import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.model.CartItem;
-import ru.yandex.practicum.mymarket.model.Item;
 
 public final class ItemMapper {
 
