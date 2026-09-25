@@ -1,18 +1,17 @@
 package ru.yandex.practicum.mymarket.itemimport;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,38 +27,46 @@ public class ItemImportService {
     private final ImageService imageService;
 
     @Transactional
-    public int importItems(MultipartFile csv, List<MultipartFile> images) {
-        if (csv.isEmpty()) {
+    public Mono<Integer> importItems(FilePart csv, List<FilePart> images) {
+        return readContent(csv)
+                .map(this::parse)
+                .flatMap(items -> itemRepository.saveAll(items)
+                        .then(storeImages(images))
+                        .thenReturn(items.size()));
+    }
+
+    List<Item> parse(String content) {
+        if (content.isBlank()) {
             throw new ItemImportException("Выберите CSV-файл со списком товаров");
         }
-        List<Item> items = readItems(csv);
-        itemRepository.saveAll(items);
-        images.stream().filter(image -> !image.isEmpty()).forEach(imageService::store);
-        return items.size();
-    }
-
-    private List<Item> readItems(MultipartFile csv) {
-        try (InputStream in = csv.getInputStream()) {
-            return parse(in);
-        } catch (IOException e) {
-            throw new ItemImportException("Не удалось прочитать файл " + csv.getOriginalFilename(), e);
-        }
-    }
-
-    List<Item> parse(InputStream in) throws IOException {
         List<Item> items = new ArrayList<>();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-        String line;
-        int lineNumber = 0;
-        while ((line = reader.readLine()) != null) {
-            lineNumber++;
-            line = line.strip();
+        List<String> lines = content.lines().toList();
+        for (int i = 0; i < lines.size(); i++) {
+            int lineNumber = i + 1;
+            String line = lines.get(i).strip();
             if (line.isEmpty() || (lineNumber == 1 && line.toLowerCase().startsWith("title" + SEPARATOR))) {
                 continue;
             }
             items.add(parseLine(line, lineNumber));
         }
         return items;
+    }
+
+    private Mono<String> readContent(FilePart csv) {
+        return DataBufferUtils.join(csv.content())
+                .map(buffer -> {
+                    String content = buffer.toString(StandardCharsets.UTF_8);
+                    DataBufferUtils.release(buffer);
+                    return content;
+                })
+                .defaultIfEmpty("");
+    }
+
+    private Mono<Void> storeImages(List<FilePart> images) {
+        return Flux.fromIterable(images)
+                .filter(image -> StringUtils.hasText(image.filename()))
+                .concatMap(image -> imageService.store(image.filename(), image.content()))
+                .then();
     }
 
     private Item parseLine(String line, int lineNumber) {
