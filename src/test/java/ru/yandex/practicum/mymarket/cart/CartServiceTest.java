@@ -6,16 +6,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
 import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemDto;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -37,39 +39,38 @@ class CartServiceTest {
 
     @Test
     void changeQuantity_plus_addsNewItemToCart() {
-        Item item = item(1L, 100);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.empty());
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.empty());
+        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        cartService.changeQuantity(1L, CartAction.PLUS);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.PLUS)).verifyComplete();
 
         ArgumentCaptor<CartItem> captor = ArgumentCaptor.forClass(CartItem.class);
         verify(cartItemRepository).save(captor.capture());
-        assertThat(captor.getValue().getItem()).isSameAs(item);
+        assertThat(captor.getValue().getItemId()).isEqualTo(1L);
         assertThat(captor.getValue().getQuantity()).isEqualTo(1);
     }
 
     @Test
     void changeQuantity_plus_incrementsExistingItem() {
-        Item item = item(1L, 100);
-        CartItem cartItem = new CartItem(item, 2);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.of(cartItem));
+        CartItem cartItem = new CartItem(1L, 2);
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
+        when(cartItemRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
 
-        cartService.changeQuantity(1L, CartAction.PLUS);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.PLUS)).verifyComplete();
 
         assertThat(cartItem.getQuantity()).isEqualTo(3);
-        verify(cartItemRepository, never()).save(any());
     }
 
     @Test
     void changeQuantity_minus_decrementsQuantity() {
-        Item item = item(1L, 100);
-        CartItem cartItem = new CartItem(item, 2);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.of(cartItem));
+        CartItem cartItem = new CartItem(1L, 2);
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
+        when(cartItemRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
 
-        cartService.changeQuantity(1L, CartAction.MINUS);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.MINUS)).verifyComplete();
 
         assertThat(cartItem.getQuantity()).isEqualTo(1);
         verify(cartItemRepository, never()).delete(any());
@@ -77,22 +78,22 @@ class CartServiceTest {
 
     @Test
     void changeQuantity_minus_removesItemWhenLastOne() {
-        Item item = item(1L, 100);
-        CartItem cartItem = new CartItem(item, 1);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.of(cartItem));
+        CartItem cartItem = new CartItem(1L, 1);
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
+        when(cartItemRepository.delete(cartItem)).thenReturn(Mono.empty());
 
-        cartService.changeQuantity(1L, CartAction.MINUS);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.MINUS)).verifyComplete();
 
         verify(cartItemRepository).delete(cartItem);
     }
 
     @Test
     void changeQuantity_minus_doesNothingWhenItemNotInCart() {
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item(1L, 100)));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.empty());
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.empty());
 
-        cartService.changeQuantity(1L, CartAction.MINUS);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.MINUS)).verifyComplete();
 
         verify(cartItemRepository, never()).delete(any());
         verify(cartItemRepository, never()).save(any());
@@ -100,78 +101,98 @@ class CartServiceTest {
 
     @Test
     void changeQuantity_delete_removesItemFromCart() {
-        Item item = item(1L, 100);
-        CartItem cartItem = new CartItem(item, 5);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemRepository.findByItemId(1L)).thenReturn(Optional.of(cartItem));
+        CartItem cartItem = new CartItem(1L, 5);
+        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
+        when(cartItemRepository.delete(cartItem)).thenReturn(Mono.empty());
 
-        cartService.changeQuantity(1L, CartAction.DELETE);
+        StepVerifier.create(cartService.changeQuantity(1L, CartAction.DELETE)).verifyComplete();
 
         verify(cartItemRepository).delete(cartItem);
     }
 
     @Test
-    void changeQuantity_unknownItem_throwsNotFound() {
-        when(itemRepository.findById(42L)).thenReturn(Optional.empty());
+    void changeQuantity_unknownItem_returnsNotFound() {
+        when(itemRepository.existsById(42L)).thenReturn(Mono.just(false));
 
-        assertThatThrownBy(() -> cartService.changeQuantity(42L, CartAction.PLUS))
-                .isInstanceOf(NotFoundException.class);
+        StepVerifier.create(cartService.changeQuantity(42L, CartAction.PLUS))
+                .expectError(NotFoundException.class)
+                .verify();
         verifyNoInteractions(cartItemRepository);
     }
 
     @Test
-    void getCartItems_returnsCartItemsFromRepository() {
-        List<CartItem> cartItems = List.of(new CartItem(item(1L, 100), 2));
-        when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(cartItems);
+    void getCartLines_joinsCartItemsWithItemsInCartOrder() {
+        Item ball = item(1L, 100);
+        Item rope = item(2L, 50);
+        when(cartItemRepository.findAllByOrderByIdAsc())
+                .thenReturn(Flux.just(new CartItem(2L, 3), new CartItem(1L, 2)));
+        when(itemRepository.findAllById(List.of(2L, 1L))).thenReturn(Flux.just(ball, rope));
 
-        assertThat(cartService.getCartItems()).isSameAs(cartItems);
+        StepVerifier.create(cartService.getCartLines())
+                .expectNext(new CartLine(rope, 3), new CartLine(ball, 2))
+                .verifyComplete();
     }
 
     @Test
     void getCart_returnsItemsAndTotal() {
-        when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(List.of(
-                new CartItem(item(1L, 100), 2),
-                new CartItem(item(2L, 50), 3)));
+        when(cartItemRepository.findAllByOrderByIdAsc())
+                .thenReturn(Flux.just(new CartItem(1L, 2), new CartItem(2L, 3)));
+        when(itemRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(item(1L, 100), item(2L, 50)));
 
-        CartDto cart = cartService.getCart();
-
-        assertThat(cart.items()).extracting("id", "count").containsExactly(
-                tuple(1L, 2),
-                tuple(2L, 3));
-        assertThat(cart.total()).isEqualTo(350);
+        StepVerifier.create(cartService.getCart())
+                .assertNext(cart -> {
+                    assertThat(cart.items()).extracting(ItemDto::id, ItemDto::count)
+                            .containsExactly(tuple(1L, 2),
+                                    tuple(2L, 3));
+                    assertThat(cart.total()).isEqualTo(350);
+                })
+                .verifyComplete();
     }
 
     @Test
     void getCart_empty_returnsZeroTotal() {
-        when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(List.of());
+        when(cartItemRepository.findAllByOrderByIdAsc()).thenReturn(Flux.empty());
 
-        CartDto cart = cartService.getCart();
-
-        assertThat(cart.items()).isEmpty();
-        assertThat(cart.total()).isZero();
+        StepVerifier.create(cartService.getCart())
+                .expectNext(new CartDto(List.of(), 0))
+                .verifyComplete();
+        verifyNoInteractions(itemRepository);
     }
 
     @Test
     void getQuantities_returnsMapByItemId() {
-        when(cartItemRepository.findAllByItemIdIn(List.of(1L, 2L)))
-                .thenReturn(List.of(new CartItem(item(1L, 100), 4)));
+        when(cartItemRepository.findAllByItemIdIn(List.of(1L, 2L))).thenReturn(Flux.just(new CartItem(1L, 4)));
 
-        Map<Long, Integer> quantities = cartService.getQuantities(List.of(1L, 2L));
-
-        assertThat(quantities).containsExactly(Map.entry(1L, 4));
+        StepVerifier.create(cartService.getQuantities(List.of(1L, 2L)))
+                .expectNext(Map.of(1L, 4))
+                .verifyComplete();
     }
 
     @Test
     void getQuantities_emptyIds_doesNotQueryRepository() {
-        assertThat(cartService.getQuantities(List.of())).isEmpty();
+        StepVerifier.create(cartService.getQuantities(List.of()))
+                .expectNext(Map.of())
+                .verifyComplete();
         verifyNoInteractions(cartItemRepository);
     }
 
     @Test
     void getQuantity_returnsZeroWhenNotInCart() {
-        when(cartItemRepository.findByItemId(7L)).thenReturn(Optional.empty());
+        when(cartItemRepository.findByItemId(7L)).thenReturn(Mono.empty());
 
-        assertThat(cartService.getQuantity(7L)).isZero();
+        StepVerifier.create(cartService.getQuantity(7L))
+                .expectNext(0)
+                .verifyComplete();
+    }
+
+    @Test
+    void clear_deletesAllCartItems() {
+        when(cartItemRepository.deleteAll()).thenReturn(Mono.empty());
+
+        StepVerifier.create(cartService.clear()).verifyComplete();
+
+        verify(cartItemRepository).deleteAll();
     }
 
     private static Item item(long id, long price) {
