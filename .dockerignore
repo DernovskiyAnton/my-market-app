@@ -1,0 +1,8 @@
+target/
+uploaded-images/
+.git/
+.idea/
+*.iml
+Dockerfile
+.dockerignore
+README.md

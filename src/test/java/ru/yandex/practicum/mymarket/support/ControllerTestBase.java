@@ -1,0 +1,37 @@
+package ru.yandex.practicum.mymarket.support;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import ru.yandex.practicum.mymarket.cart.CartService;
+import ru.yandex.practicum.mymarket.image.ImageService;
+import ru.yandex.practicum.mymarket.item.ItemService;
+import ru.yandex.practicum.mymarket.itemimport.ItemImportService;
+import ru.yandex.practicum.mymarket.order.OrderService;
+import ru.yandex.practicum.mymarket.purchase.PurchaseService;
+
+@WebMvcTest
+public abstract class ControllerTestBase {
+
+    @Autowired
+    protected MockMvc mockMvc;
+
+    @MockitoBean
+    protected ItemService itemService;
+
+    @MockitoBean
+    protected CartService cartService;
+
+    @MockitoBean
+    protected OrderService orderService;
+
+    @MockitoBean
+    protected PurchaseService purchaseService;
+
+    @MockitoBean
+    protected ImageService imageService;
+
+    @MockitoBean
+    protected ItemImportService itemImportService;
+}
