@@ -5,6 +5,8 @@ import org.springframework.web.reactive.function.BodyInserters;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
 import ru.yandex.practicum.mymarket.item.ItemDto;
+import ru.yandex.practicum.mymarket.payment.PaymentAvailability;
+import ru.yandex.practicum.mymarket.payment.PaymentUnavailableException;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;
@@ -19,22 +21,50 @@ class CartControllerTest extends ControllerTestBase {
     private static final ItemDto BALL = new ItemDto(1L, "Мяч", "Футбольный мяч", "images/ball.svg", 2500, 2);
 
     @Test
-    void getCart_rendersItemsAndTotal() {
+    void getCart_enoughFunds_rendersItemsTotalAndBuyButton() {
         when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.enoughFunds(8000)));
 
         webTestClient.get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
-                .value(html -> assertThat(html).contains("Футбольный мяч", "<span>2</span>", "Итого: 5000 руб.", "Купить"));
+                .value(html -> assertThat(html).contains("Футбольный мяч", "<span>2</span>", "Итого: 5000 руб.",
+                        "Баланс: 8000 руб.", "Купить").doesNotContain("alert-warning"));
     }
 
     @Test
-    void getCart_empty_hidesBuyButton() {
+    void getCart_insufficientFunds_hidesBuyButtonAndShowsMessage() {
+        PaymentAvailability availability = PaymentAvailability.insufficientFunds(1000, 5000);
+        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(availability));
+
+        webTestClient.get().uri("/cart/items").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains(availability.message(), "Баланс: 1000 руб.")
+                        .doesNotContain("Купить"));
+    }
+
+    @Test
+    void getCart_paymentServiceUnavailable_hidesBuyButtonAndShowsMessage() {
+        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.serviceUnavailable()));
+
+        webTestClient.get().uri("/cart/items").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains(PaymentUnavailableException.MESSAGE)
+                        .doesNotContain("Купить", "Баланс:"));
+    }
+
+    @Test
+    void getCart_empty_hidesBuyButtonWithoutCallingPaymentService() {
         when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(), 0)));
 
         webTestClient.get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).doesNotContain("Купить"));
+        verifyNoInteractions(paymentService);
     }
 
     @Test
@@ -72,6 +102,6 @@ class CartControllerTest extends ControllerTestBase {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        verifyNoInteractions(cartService);
+        verifyNoInteractions(cartService, paymentService);
     }
 }

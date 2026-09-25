@@ -9,6 +9,7 @@ import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.ItemService;
 import ru.yandex.practicum.mymarket.itemimport.ItemImportService;
 import ru.yandex.practicum.mymarket.order.OrderService;
+import ru.yandex.practicum.mymarket.payment.PaymentService;
 import ru.yandex.practicum.mymarket.purchase.PurchaseService;
 
 @WebFluxTest
@@ -28,6 +29,9 @@ public abstract class ControllerTestBase {
 
     @MockitoBean
     protected PurchaseService purchaseService;
+
+    @MockitoBean
+    protected PaymentService paymentService;
 
     @MockitoBean
     protected ImageService imageService;
