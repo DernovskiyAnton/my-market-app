@@ -34,7 +34,7 @@ public class ItemImportService {
                 .map(this::parse)
                 .flatMap(items -> itemRepository.saveAll(items)
                         .then(storeImages(images))
-                        .then(itemCache.evictSummaries())
+                        .then(Mono.defer(itemCache::evictSummaries))
                         .thenReturn(items.size()));
     }
 
