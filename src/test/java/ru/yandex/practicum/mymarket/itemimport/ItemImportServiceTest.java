@@ -7,7 +7,11 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.codec.multipart.FilePart;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
@@ -19,10 +23,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ItemImportServiceTest {
@@ -38,23 +47,28 @@ class ItemImportServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void importItems_parsesCsvAndSavesItems() {
-        MockMultipartFile csv = csv("""
+    void importItems_parsesCsvSavesItemsAndThenStoresImages() {
+        FilePart csv = filePart("items.csv", """
                 title;price;image;description
                 Мяч;2500;ball.jpg;Кожаный мяч; размер 5
 
                 Скакалка;600;;
                 Кепка;300;cap.png
                 """);
-        MockMultipartFile image = new MockMultipartFile("images", "ball.jpg", "image/jpeg", new byte[]{1});
+        FilePart image = filePart("ball.jpg", "image");
+        FilePart notSelected = filePart("", "");
+        when(itemRepository.saveAll(anyList())).thenAnswer(invocation -> Flux.fromIterable(invocation.getArgument(0)));
+        when(imageService.store(eq("ball.jpg"), any())).thenReturn(Mono.just("images/ball.jpg"));
 
-        int imported = itemImportService.importItems(csv, List.of(image));
+        StepVerifier.create(itemImportService.importItems(csv, List.of(image, notSelected)))
+                .expectNext(3)
+                .verifyComplete();
 
-        assertThat(imported).isEqualTo(3);
         ArgumentCaptor<List<Item>> captor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = inOrder(itemRepository, imageService);
         inOrder.verify(itemRepository).saveAll(captor.capture());
-        inOrder.verify(imageService).store(image);
+        inOrder.verify(imageService).store(eq("ball.jpg"), any());
+        verify(imageService, never()).store(eq(""), any());
         assertThat(captor.getValue())
                 .extracting(Item::getTitle, Item::getPrice, Item::getImgPath, Item::getDescription)
                 .containsExactly(
@@ -64,63 +78,52 @@ class ItemImportServiceTest {
     }
 
     @Test
-    void importItems_emptyCsv_throwsException() {
-        MockMultipartFile csv = new MockMultipartFile("file", "items.csv", "text/csv", new byte[0]);
-
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
-                .isInstanceOf(ItemImportException.class);
+    void importItems_emptyCsv_returnsError() {
+        StepVerifier.create(itemImportService.importItems(filePart("items.csv", ""), List.of()))
+                .expectErrorMessage("Выберите CSV-файл со списком товаров")
+                .verify();
         verifyNoInteractions(imageService, itemRepository);
     }
 
     @Test
-    void importItems_invalidPrice_throwsExceptionWithLineNumber() {
-        MockMultipartFile csv = csv("Мяч;дорого;ball.jpg;описание");
+    void importItems_invalidCsv_doesNotSaveItemsOrStoreImages() {
+        FilePart csv = filePart("items.csv", "Мяч;100;ball.jpg;описание\nКепка;дорого;cap.png;описание");
 
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
-                .isInstanceOf(ItemImportException.class)
-                .hasMessageContaining("Строка 1");
-        verify(itemRepository, never()).saveAll(any());
-    }
-
-    @Test
-    void importItems_invalidCsv_doesNotStoreImages() {
-        MockMultipartFile csv = csv("Мяч;100;ball.jpg;описание\nКепка;дорого;cap.png;описание");
-        MockMultipartFile image = new MockMultipartFile("images", "ball.jpg", "image/jpeg", new byte[]{1});
-
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of(image)))
-                .isInstanceOf(ItemImportException.class)
-                .hasMessageContaining("Строка 2");
+        StepVerifier.create(itemImportService.importItems(csv, List.of(filePart("ball.jpg", "image"))))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(ItemImportException.class)
+                        .hasMessageContaining("Строка 2"))
+                .verify();
         verifyNoInteractions(imageService, itemRepository);
     }
 
     @Test
-    void importItems_negativePrice_throwsException() {
-        MockMultipartFile csv = csv("Мяч;-5;;");
-
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
-                .isInstanceOf(ItemImportException.class)
-                .hasMessageContaining("отрицательной");
+    void parse_negativePrice_throwsException() {
+        assertThatImportFails("Мяч;-5;;", "отрицательной");
     }
 
     @Test
-    void importItems_notEnoughFields_throwsException() {
-        MockMultipartFile csv = csv("title;price;image;description\nМяч;100");
-
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
-                .isInstanceOf(ItemImportException.class)
-                .hasMessageContaining("Строка 2");
+    void parse_notEnoughFields_throwsException() {
+        assertThatImportFails("title;price;image;description\nМяч;100", "Строка 2");
     }
 
     @Test
-    void importItems_blankTitle_throwsException() {
-        MockMultipartFile csv = csv(" ;100;;описание");
-
-        assertThatThrownBy(() -> itemImportService.importItems(csv, List.of()))
-                .isInstanceOf(ItemImportException.class)
-                .hasMessageContaining("название");
+    void parse_blankTitle_throwsException() {
+        assertThatImportFails(" ;100;;описание", "название");
     }
 
-    private static MockMultipartFile csv(String content) {
-        return new MockMultipartFile("file", "items.csv", "text/csv", content.getBytes(StandardCharsets.UTF_8));
+    private void assertThatImportFails(String content, String messagePart) {
+        assertThatThrownBy(() -> itemImportService.parse(content))
+                .isInstanceOf(ItemImportException.class)
+                .hasMessageContaining(messagePart);
+    }
+
+    private static FilePart filePart(String fileName, String content) {
+        FilePart part = mock(FilePart.class);
+        lenient().when(part.filename()).thenReturn(fileName);
+        lenient().when(part.content()).thenReturn(content.isEmpty()
+                ? Flux.empty()
+                : Flux.just(DefaultDataBufferFactory.sharedInstance.wrap(content.getBytes(StandardCharsets.UTF_8))));
+        return part;
     }
 }
