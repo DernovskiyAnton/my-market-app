@@ -3,6 +3,7 @@ package ru.yandex.practicum.mymarket.purchase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.cart.CartAction;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
@@ -14,7 +15,6 @@ import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PurchaseServiceIntegrationTest extends IntegrationTestBase {
 
@@ -38,35 +38,37 @@ class PurchaseServiceIntegrationTest extends IntegrationTestBase {
 
     @Test
     void buy_savesOrderAndClearsCart() {
-        cartService.changeQuantity(ballId, CartAction.PLUS);
-        cartService.changeQuantity(ballId, CartAction.PLUS);
-        cartService.changeQuantity(racketId, CartAction.PLUS);
+        cartService.changeQuantity(ballId, CartAction.PLUS)
+                .then(cartService.changeQuantity(ballId, CartAction.PLUS))
+                .then(cartService.changeQuantity(racketId, CartAction.PLUS))
+                .block();
 
-        long orderId = purchaseService.buy();
+        Long orderId = purchaseService.buy().block();
 
-        OrderDto order = orderService.getOrder(orderId);
-        assertThat(order.items()).containsExactly(
-                new OrderItemDto(ballId, "Тестовый мяч", 1000, 2),
-                new OrderItemDto(racketId, "Тестовая ракетка", 4000, 1));
-        assertThat(order.totalSum()).isEqualTo(2 * 1000 + 4000);
-        assertThat(cartService.getCart().items()).isEmpty();
-        assertThat(orderService.findAll()).extracting(OrderDto::id).contains(orderId);
+        StepVerifier.create(orderService.getOrder(orderId))
+                .expectNext(new OrderDto(orderId, List.of(
+                        new OrderItemDto(ballId, "Тестовый мяч", 1000, 2),
+                        new OrderItemDto(racketId, "Тестовая ракетка", 4000, 1)), 2 * 1000 + 4000))
+                .verifyComplete();
+        StepVerifier.create(cartService.getCart())
+                .assertNext(cart -> assertThat(cart.items()).isEmpty())
+                .verifyComplete();
     }
 
     @Test
-    void buy_emptyCart_throwsException() {
-        assertThatThrownBy(() -> purchaseService.buy()).isInstanceOf(EmptyCartException.class);
+    void buy_emptyCart_returnsError() {
+        StepVerifier.create(purchaseService.buy())
+                .expectError(EmptyCartException.class)
+                .verify();
     }
 
     @Test
     void buy_severalTimes_ordersListedNewestFirst() {
-        cartService.changeQuantity(ballId, CartAction.PLUS);
-        long first = purchaseService.buy();
-        cartService.changeQuantity(racketId, CartAction.PLUS);
-        long second = purchaseService.buy();
+        Long first = cartService.changeQuantity(ballId, CartAction.PLUS).then(purchaseService.buy()).block();
+        Long second = cartService.changeQuantity(racketId, CartAction.PLUS).then(purchaseService.buy()).block();
 
-        List<Long> ids = orderService.findAll().stream().map(OrderDto::id).toList();
-
-        assertThat(ids).containsSubsequence(second, first);
+        StepVerifier.create(orderService.findAll().map(OrderDto::id))
+                .expectNext(second, first)
+                .verifyComplete();
     }
 }

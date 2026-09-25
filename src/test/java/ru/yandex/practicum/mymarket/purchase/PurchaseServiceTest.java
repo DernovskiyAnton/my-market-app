@@ -7,7 +7,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.yandex.practicum.mymarket.cart.CartItem;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
+import ru.yandex.practicum.mymarket.cart.CartLine;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
 import ru.yandex.practicum.mymarket.item.Item;
@@ -22,9 +25,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,35 +52,38 @@ class PurchaseServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void buy_createsOrderFromCartAndClearsCart() {
-        when(cartService.getCartItems()).thenReturn(List.of(
-                new CartItem(item(1L, 100), 2),
-                new CartItem(item(2L, 30), 1)));
-        when(orderService.create(any(Order.class))).thenReturn(10L);
+        when(cartService.getCartLines()).thenReturn(Flux.just(
+                new CartLine(item(1L, 100), 2),
+                new CartLine(item(2L, 30), 1)));
+        when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.just(10L));
+        when(cartService.clear()).thenReturn(Mono.empty());
 
-        long orderId = purchaseService.buy();
+        StepVerifier.create(purchaseService.buy())
+                .expectNext(10L)
+                .verifyComplete();
 
-        assertThat(orderId).isEqualTo(10L);
-        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = inOrder(orderService, cartService);
-        inOrder.verify(orderService).create(captor.capture());
+        inOrder.verify(orderService).create(orderCaptor.capture(), itemsCaptor.capture());
         inOrder.verify(cartService).clear();
-        Order order = captor.getValue();
-        assertThat(order.getCreatedAt()).isEqualTo(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
-        assertThat(order.getTotalSum()).isEqualTo(230);
-        assertThat(order.getItems()).extracting(OrderItem::getTitle, OrderItem::getPrice, OrderItem::getQuantity)
-                .containsExactly(
-                        tuple("Товар 1", 100L, 2),
-                        tuple("Товар 2", 30L, 1));
-        assertThat(order.getItems()).allMatch(orderItem -> orderItem.getOrder() == order);
+        assertThat(orderCaptor.getValue().getCreatedAt()).isEqualTo(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
+        assertThat(orderCaptor.getValue().getTotalSum()).isEqualTo(230);
+        assertThat(itemsCaptor.getValue())
+                .extracting(OrderItem::getItemId, OrderItem::getTitle, OrderItem::getPrice, OrderItem::getQuantity)
+                .containsExactly(tuple(1L, "Товар 1", 100L, 2), tuple(2L, "Товар 2", 30L, 1));
     }
 
     @Test
-    void buy_emptyCart_throwsException() {
-        when(cartService.getCartItems()).thenReturn(List.of());
+    void buy_emptyCart_returnsError() {
+        when(cartService.getCartLines()).thenReturn(Flux.empty());
 
-        assertThatThrownBy(() -> purchaseService.buy()).isInstanceOf(EmptyCartException.class);
-        verify(orderService, never()).create(any());
+        StepVerifier.create(purchaseService.buy())
+                .expectError(EmptyCartException.class)
+                .verify();
+        verify(orderService, never()).create(any(), anyList());
         verify(cartService, never()).clear();
     }
 

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
@@ -19,13 +20,13 @@ public class ImageController {
     private final ImageService imageService;
 
     @GetMapping("/images/{fileName}")
-    public ResponseEntity<Resource> getImage(@PathVariable String fileName) {
+    public Mono<ResponseEntity<Resource>> getImage(@PathVariable String fileName) {
         return imageService.load(fileName)
                 .map(image -> ResponseEntity.ok()
                         .contentType(MediaTypeFactory.getMediaType(fileName)
                                 .orElse(MediaType.APPLICATION_OCTET_STREAM))
                         .cacheControl(CacheControl.maxAge(Duration.ofHours(1)))
                         .body(image))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 }

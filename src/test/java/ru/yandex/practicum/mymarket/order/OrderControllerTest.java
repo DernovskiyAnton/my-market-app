@@ -1,19 +1,15 @@
 package ru.yandex.practicum.mymarket.order;
 
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 class OrderControllerTest extends ControllerTestBase {
 
@@ -21,45 +17,41 @@ class OrderControllerTest extends ControllerTestBase {
             List.of(new OrderItemDto(1L, "Мяч", 2500, 2), new OrderItemDto(2L, "Скакалка", 600, 1)), 5600);
 
     @Test
-    void getOrders_rendersOrderList() throws Exception {
-        when(orderService.findAll()).thenReturn(List.of(ORDER));
+    void getOrders_rendersOrderList() {
+        when(orderService.findAll()).thenReturn(Flux.just(ORDER));
 
-        mockMvc.perform(get("/orders"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("orders"))
-                .andExpect(model().attribute("orders", List.of(ORDER)))
-                .andExpect(content().string(containsString("Заказ №7")))
-                .andExpect(content().string(containsString("Мяч (2 шт.) 5000 руб.")))
-                .andExpect(content().string(containsString("Сумма: 5600 руб.")));
+        webTestClient.get().uri("/orders").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains("Заказ №7", "href=\"/orders/7\"",
+                        "Мяч (2 шт.) 5000 руб.", "Скакалка (1 шт.) 600 руб.", "Сумма: 5600 руб."));
     }
 
     @Test
-    void getOrder_newOrder_showsSuccessAlert() throws Exception {
-        when(orderService.getOrder(7L)).thenReturn(ORDER);
+    void getOrder_newOrder_showsSuccessAlert() {
+        when(orderService.getOrder(7L)).thenReturn(Mono.just(ORDER));
 
-        mockMvc.perform(get("/orders/7").param("newOrder", "true"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("order"))
-                .andExpect(model().attribute("order", ORDER))
-                .andExpect(model().attribute("newOrder", true))
-                .andExpect(content().string(containsString("Успешная покупка")));
+        webTestClient.get().uri("/orders/7?newOrder=true").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains("Заказ №7", "Успешная покупка", "Сумма: 5600 руб."));
     }
 
     @Test
-    void getOrder_byDefault_isNotNewOrder() throws Exception {
-        when(orderService.getOrder(7L)).thenReturn(ORDER);
+    void getOrder_byDefault_isNotNewOrder() {
+        when(orderService.getOrder(7L)).thenReturn(Mono.just(ORDER));
 
-        mockMvc.perform(get("/orders/7"))
-                .andExpect(status().isOk())
-                .andExpect(model().attribute("newOrder", false))
-                .andExpect(content().string(not(containsString("Успешная покупка"))));
+        webTestClient.get().uri("/orders/7").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).value(html -> assertThat(html).doesNotContain("Успешная покупка"));
     }
 
     @Test
-    void getOrder_unknownId_returnsNotFound() throws Exception {
-        when(orderService.getOrder(99L)).thenThrow(NotFoundException.order(99L));
+    void getOrder_unknownId_returnsNotFound() {
+        when(orderService.getOrder(99L)).thenReturn(Mono.error(NotFoundException.order(99L)));
 
-        mockMvc.perform(get("/orders/99"))
-                .andExpect(status().isNotFound());
+        webTestClient.get().uri("/orders/99").exchange()
+                .expectStatus().isNotFound()
+                .expectBody(String.class).value(html -> assertThat(html).contains("Заказ с id=99 не найден"));
     }
 }

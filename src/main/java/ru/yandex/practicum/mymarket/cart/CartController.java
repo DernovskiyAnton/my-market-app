@@ -1,12 +1,14 @@
 package ru.yandex.practicum.mymarket.cart;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.result.view.Rendering;
+import reactor.core.publisher.Mono;
 
 @Controller
 @RequestMapping("/cart/items")
@@ -16,20 +18,21 @@ public class CartController {
     private final CartService cartService;
 
     @GetMapping
-    public String getCart(Model model) {
-        return renderCart(model);
+    public Mono<Rendering> getCart() {
+        return renderCart();
     }
 
     @PostMapping
-    public String changeCartItem(@RequestParam long id, @RequestParam CartAction action, Model model) {
-        cartService.changeQuantity(id, action);
-        return renderCart(model);
+    public Mono<Rendering> changeCartItem(@Valid @ModelAttribute CartItemForm form) {
+        return cartService.changeQuantity(form.id(), form.action())
+                .then(Mono.defer(this::renderCart));
     }
 
-    private String renderCart(Model model) {
-        CartDto cart = cartService.getCart();
-        model.addAttribute("items", cart.items());
-        model.addAttribute("total", cart.total());
-        return "cart";
+    private Mono<Rendering> renderCart() {
+        return cartService.getCart()
+                .map(cart -> Rendering.view("cart")
+                        .modelAttribute("items", cart.items())
+                        .modelAttribute("total", cart.total())
+                        .build());
     }
 }

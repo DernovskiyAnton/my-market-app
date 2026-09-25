@@ -3,7 +3,8 @@ package ru.yandex.practicum.mymarket.purchase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.yandex.practicum.mymarket.cart.CartItem;
+import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.cart.CartLine;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
 import ru.yandex.practicum.mymarket.order.Order;
@@ -23,15 +24,21 @@ public class PurchaseService {
     private final Clock clock;
 
     @Transactional
-    public long buy() {
-        List<CartItem> cartItems = cartService.getCartItems();
-        if (cartItems.isEmpty()) {
-            throw new EmptyCartException();
+    public Mono<Long> buy() {
+        return cartService.getCartLines()
+                .collectList()
+                .flatMap(this::createOrder)
+                .flatMap(orderId -> cartService.clear().thenReturn(orderId));
+    }
+
+    private Mono<Long> createOrder(List<CartLine> lines) {
+        if (lines.isEmpty()) {
+            return Mono.error(new EmptyCartException());
         }
-        Order order = new Order(LocalDateTime.now(clock));
-        cartItems.forEach(cartItem -> order.addItem(new OrderItem(cartItem.getItem(), cartItem.getQuantity())));
-        long orderId = orderService.create(order);
-        cartService.clear();
-        return orderId;
+        List<OrderItem> items = lines.stream()
+                .map(line -> new OrderItem(line.item(), line.quantity()))
+                .toList();
+        long totalSum = items.stream().mapToLong(OrderItem::getSum).sum();
+        return orderService.create(new Order(LocalDateTime.now(clock), totalSum), items);
     }
 }

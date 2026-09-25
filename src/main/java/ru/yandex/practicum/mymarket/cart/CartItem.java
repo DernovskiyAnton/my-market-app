@@ -1,39 +1,26 @@
 package ru.yandex.practicum.mymarket.cart;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import ru.yandex.practicum.mymarket.item.Item;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name = "cart_items")
+@Table("cart_items")
 @Getter
 @Setter
 @NoArgsConstructor
 public class CartItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "item_id", nullable = false, unique = true)
-    private Item item;
+    private Long itemId;
 
-    @Column(nullable = false)
     private int quantity;
 
-    public CartItem(Item item, int quantity) {
-        this.item = item;
+    public CartItem(Long itemId, int quantity) {
+        this.itemId = itemId;
         this.quantity = quantity;
     }
 }
