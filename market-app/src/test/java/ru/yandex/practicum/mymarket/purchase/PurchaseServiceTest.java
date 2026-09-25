@@ -13,10 +13,13 @@ import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.cart.CartLine;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCard;
 import ru.yandex.practicum.mymarket.order.Order;
 import ru.yandex.practicum.mymarket.order.OrderItem;
 import ru.yandex.practicum.mymarket.order.OrderService;
+import ru.yandex.practicum.mymarket.payment.PaymentRejectedException;
+import ru.yandex.practicum.mymarket.payment.PaymentService;
+import ru.yandex.practicum.mymarket.payment.PaymentUnavailableException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,20 +48,23 @@ class PurchaseServiceTest {
     @Mock
     private OrderService orderService;
 
+    @Mock
+    private PaymentService paymentService;
+
     private PurchaseService purchaseService;
 
     @BeforeEach
     void setUp() {
-        purchaseService = new PurchaseService(cartService, orderService, Clock.fixed(NOW, ZoneOffset.UTC));
+        purchaseService = new PurchaseService(cartService, orderService, paymentService,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void buy_createsOrderFromCartAndClearsCart() {
-        when(cartService.getCartLines()).thenReturn(Flux.just(
-                new CartLine(item(1L, 100), 2),
-                new CartLine(item(2L, 30), 1)));
+    void buy_createsOrderPaysAndClearsCart() {
+        givenCart();
         when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.just(10L));
+        when(paymentService.pay(230)).thenReturn(Mono.just(770L));
         when(cartService.clear()).thenReturn(Mono.empty());
 
         StepVerifier.create(purchaseService.buy())
@@ -66,8 +73,9 @@ class PurchaseServiceTest {
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
-        InOrder inOrder = inOrder(orderService, cartService);
+        InOrder inOrder = inOrder(orderService, paymentService, cartService);
         inOrder.verify(orderService).create(orderCaptor.capture(), itemsCaptor.capture());
+        inOrder.verify(paymentService).pay(230);
         inOrder.verify(cartService).clear();
         assertThat(orderCaptor.getValue().getCreatedAt()).isEqualTo(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
         assertThat(orderCaptor.getValue().getTotalSum()).isEqualTo(230);
@@ -77,19 +85,48 @@ class PurchaseServiceTest {
     }
 
     @Test
-    void buy_emptyCart_returnsError() {
+    void buy_paymentRejected_returnsErrorAndKeepsCart() {
+        givenCart();
+        when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.just(10L));
+        when(paymentService.pay(230)).thenReturn(Mono.error(new PaymentRejectedException("Недостаточно средств")));
+
+        StepVerifier.create(purchaseService.buy())
+                .expectError(PaymentRejectedException.class)
+                .verify();
+        verify(cartService, never()).clear();
+    }
+
+    @Test
+    void buy_paymentServiceUnavailable_returnsErrorAndKeepsCart() {
+        givenCart();
+        when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.just(10L));
+        when(paymentService.pay(230)).thenReturn(Mono.error(new PaymentUnavailableException(new RuntimeException())));
+
+        StepVerifier.create(purchaseService.buy())
+                .expectError(PaymentUnavailableException.class)
+                .verify();
+        verify(cartService, never()).clear();
+    }
+
+    @Test
+    void buy_emptyCart_returnsErrorWithoutPayment() {
         when(cartService.getCartLines()).thenReturn(Flux.empty());
 
         StepVerifier.create(purchaseService.buy())
                 .expectError(EmptyCartException.class)
                 .verify();
         verify(orderService, never()).create(any(), anyList());
+        verify(paymentService, never()).pay(anyLong());
         verify(cartService, never()).clear();
     }
 
-    private static Item item(long id, long price) {
-        Item item = new Item("Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
-        item.setId(id);
-        return item;
+    private void givenCart() {
+        when(cartService.getCartLines()).thenReturn(Flux.just(
+                new CartLine(item(1L, 100), 2),
+                new CartLine(item(2L, 30), 1)));
+    }
+
+    private static ItemCard item(long id, long price) {
+        return new ItemCard(id, "Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
     }
 }
