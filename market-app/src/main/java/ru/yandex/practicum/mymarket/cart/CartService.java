@@ -6,9 +6,8 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCache;
 import ru.yandex.practicum.mymarket.item.ItemMapper;
-import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.util.Collection;
 import java.util.List;
@@ -19,7 +18,7 @@ import java.util.Map;
 public class CartService {
 
     private final CartItemRepository cartItemRepository;
-    private final ItemRepository itemRepository;
+    private final ItemCache itemCache;
 
     public Flux<CartLine> getCartLines() {
         return cartItemRepository.findAllByOrderByIdAsc()
@@ -50,7 +49,7 @@ public class CartService {
 
     @Transactional
     public Mono<Void> changeQuantity(long itemId, CartAction action) {
-        return itemRepository.existsById(itemId)
+        return itemCache.getCard(itemId).hasElement()
                 .flatMap(exists -> exists
                         ? applyAction(itemId, action)
                         : Mono.error(NotFoundException.item(itemId)));
@@ -66,10 +65,10 @@ public class CartService {
             return Flux.empty();
         }
         List<Long> itemIds = cartItems.stream().map(CartItem::getItemId).toList();
-        return itemRepository.findAllById(itemIds)
-                .collectMap(Item::getId)
-                .flatMapMany(items -> Flux.fromIterable(cartItems)
-                        .map(cartItem -> new CartLine(items.get(cartItem.getItemId()), cartItem.getQuantity())));
+        return itemCache.getCards(itemIds)
+                .flatMapMany(cards -> Flux.fromIterable(cartItems)
+                        .filter(cartItem -> cards.containsKey(cartItem.getItemId()))
+                        .map(cartItem -> new CartLine(cards.get(cartItem.getItemId()), cartItem.getQuantity())));
     }
 
     private Mono<Void> applyAction(long itemId, CartAction action) {

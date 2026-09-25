@@ -1,6 +1,6 @@
 package ru.yandex.practicum.mymarket.cart;
 
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCard;
 
-public record CartLine(Item item, int quantity) {
+public record CartLine(ItemCard item, int quantity) {
 }

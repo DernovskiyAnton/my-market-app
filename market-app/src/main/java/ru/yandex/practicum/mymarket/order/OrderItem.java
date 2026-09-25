@@ -5,7 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCard;
 
 @Table("order_items")
 @Getter
@@ -26,10 +26,10 @@ public class OrderItem {
 
     private int quantity;
 
-    public OrderItem(Item item, int quantity) {
-        this.itemId = item.getId();
-        this.title = item.getTitle();
-        this.price = item.getPrice();
+    public OrderItem(ItemCard item, int quantity) {
+        this.itemId = item.id();
+        this.title = item.title();
+        this.price = item.price();
         this.quantity = quantity;
     }
 
