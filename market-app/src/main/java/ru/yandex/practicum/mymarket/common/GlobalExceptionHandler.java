@@ -10,6 +10,8 @@ import org.springframework.web.reactive.result.view.Rendering;
 import org.springframework.web.server.ServerWebInputException;
 import ru.yandex.practicum.mymarket.itemimport.ItemImportController;
 import ru.yandex.practicum.mymarket.itemimport.ItemImportException;
+import ru.yandex.practicum.mymarket.payment.PaymentRejectedException;
+import ru.yandex.practicum.mymarket.payment.PaymentUnavailableException;
 
 @Slf4j
 @ControllerAdvice
@@ -29,6 +31,18 @@ public class GlobalExceptionHandler {
     public Rendering handleEmptyCart(EmptyCartException e) {
         log.info("Order rejected: {}", e.getMessage());
         return errorView(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(PaymentRejectedException.class)
+    public Rendering handlePaymentRejected(PaymentRejectedException e) {
+        log.info("Payment rejected: {}", e.getMessage());
+        return errorView(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(PaymentUnavailableException.class)
+    public Rendering handlePaymentUnavailable(PaymentUnavailableException e) {
+        log.warn("Payment service unavailable: {}", e.getCause() == null ? e.getMessage() : e.getCause().toString());
+        return errorView(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
     }
 
     @ExceptionHandler({ServerWebInputException.class, HandlerMethodValidationException.class})
