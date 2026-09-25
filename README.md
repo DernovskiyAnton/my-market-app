@@ -1,6 +1,6 @@
 # Витрина интернет-магазина (my-market-app)
 
-Веб-приложение «Витрина интернет-магазина» на Spring Boot и блокирующем стеке:
+Веб-приложение «Витрина интернет-магазина» на Spring Boot и реактивном стеке (Spring WebFlux + Spring Data R2DBC):
 пользователь просматривает каталог товаров, кладёт товары в корзину, оформляет заказ
 и смотрит историю заказов.
 
@@ -10,10 +10,11 @@
 |---|---|
 | Язык | Java 21 |
 | Фреймворк | Spring Boot 3.5 |
-| Веб-слой | Spring Web MVC + Thymeleaf, встроенный Tomcat |
-| Доступ к данным | Spring Data JPA, Hibernate ORM |
-| База данных | H2 в памяти |
-| Тесты | JUnit 5, Mockito, Spring TestContext Framework, Spring Boot Test (`@SpringBootTest`, `@WebMvcTest`, `@DataJpaTest`) |
+| Веб-слой | Spring WebFlux + Thymeleaf, встроенный Netty |
+| Доступ к данным | Spring Data R2DBC, реактивные транзакции (`R2dbcTransactionManager`) |
+| База данных | H2 в памяти, реактивный драйвер `r2dbc-h2` |
+| Реактивная библиотека | Project Reactor (`Mono`, `Flux`) |
+| Тесты | JUnit 5, Mockito, Reactor Test (`StepVerifier`), Spring TestContext Framework, Spring Boot Test (`@SpringBootTest`, `@WebFluxTest`, `@DataR2dbcTest`), `WebTestClient` |
 | Сборка | Maven (Maven Wrapper), Executable JAR |
 | Развёртывание | Docker |
 
@@ -45,26 +46,33 @@
 | GET | `/orders` | Список заказов | шаблон `orders` |
 | GET | `/orders/{id}?newOrder=false` | Страница заказа | шаблон `order` |
 | GET | `/admin/items` | Форма загрузки товаров | шаблон `import` |
-| POST | `/admin/items/import` | Импорт CSV (`file`) и изображений (`images`) | `redirect:/admin/items` |
+| GET | `/admin/items?imported=N` | Форма загрузки с сообщением о результате | шаблон `import` |
+| POST | `/admin/items/import` | Импорт CSV (`file`) и изображений (`images`) | `redirect:/admin/items?imported=N` |
 | GET | `/images/{fileName}` | Изображение товара | файл изображения |
 
+POST-эндпоинты принимают параметры как из строки запроса, так и из тела формы
+(`application/x-www-form-urlencoded`), которое отправляют шаблоны.
+
 Несуществующие товар или заказ — `404 Not Found`, покупка с пустой корзиной и некорректные
-параметры запроса — `400 Bad Request`.
+параметры запроса — `400 Bad Request`, ошибка в CSV — страница загрузки с сообщением и `400`,
+слишком большой файл — `413 Payload Too Large`. Редиректы после POST отдаются со статусом `303 See Other`.
 
 ## Структура проекта
 
 Код разложен по модулям (частям) приложения, внутри каждого модуля — свои слои:
-контроллер, сервис, репозиторий, сущности, DTO и мапперы.
+контроллер, сервис, репозиторий, сущности, DTO и мапперы. Все слои реактивные: репозитории
+возвращают `Mono`/`Flux`, сервисы собирают из них цепочки, контроллеры возвращают `Mono<Rendering>`
+или `Mono<String>` с редиректом, и ни один вызов не блокирует поток Netty.
 
 ```
 src/main/java/ru/yandex/practicum/mymarket
 ├── MyMarketAppApplication.java  точка входа
 ├── item/        товары: Item, ItemRepository, ItemService, ItemController,
-│                ItemDto, ItemMapper, ItemGrid, Paging, SortType
+│                ItemDto, ItemMapper, ItemGrid, Paging, SortType, CatalogCartForm, ItemCartForm
 ├── cart/        корзина: CartItem, CartItemRepository, CartService, CartController,
-│                CartDto, CartAction
-├── order/       заказы: Order, OrderItem, OrderRepository, OrderService, OrderController,
-│                OrderDto, OrderItemDto, OrderMapper
+│                CartDto, CartLine, CartAction, CartItemForm
+├── order/       заказы: Order, OrderItem, OrderRepository, OrderItemRepository, OrderService,
+│                OrderController, OrderDto, OrderItemDto, OrderMapper
 ├── purchase/    покупка: PurchaseService (оформляет заказ из корзины и очищает её),
 │                PurchaseController (POST /buy)
 ├── image/       изображения товаров: ImageService, ImageController
@@ -82,7 +90,21 @@ src/main/resources
 
 Контроллеры работают только с сервисами и DTO, сервисы — с репозиториями и сущностями,
 в шаблоны передаются неизменяемые DTO (`record`). Модули обращаются друг к другу через сервисы:
-например, `PurchaseService` берёт позиции из `CartService` и сохраняет заказ через `OrderService`.
+например, `PurchaseService` берёт позиции из `CartService` и сохраняет заказ через `OrderService`
+в одной реактивной транзакции.
+
+Особенности реактивной реализации:
+
+- В WebFlux `@RequestParam` читает только строку запроса, поэтому данные POST-форм привязываются
+  через `@ModelAttribute` к record-классам (`CatalogCartForm`, `ItemCartForm`, `CartItemForm`)
+  с проверкой через Bean Validation.
+- В WebFlux нет flash-атрибутов, поэтому результат импорта передаётся на страницу загрузки
+  параметром `imported`, а ошибка импорта сразу отображается на странице загрузки.
+- Файлы загружаются как `FilePart` и пишутся на диск неблокирующим `DataBufferUtils.write`;
+  чтение изображений с диска вынесено на `Schedulers.boundedElastic()`.
+- В R2DBC нет связей между сущностями, поэтому сущности ссылаются друг на друга по идентификаторам
+  (`itemId`, `orderId`), а позиции корзины и заказов собираются в сервисах запросами по списку
+  идентификаторов, без N+1.
 
 ## Схема базы данных
 
@@ -100,11 +122,10 @@ price       (>= 0)                                                          pric
 - Корзина одна на приложение (пользователей нет): каждая строка `cart_items` — товар и его количество.
 - В `order_items` название и цена товара копируются на момент покупки, поэтому последующие
   изменения каталога не меняют историю заказов; `total_sum` хранится в заказе.
-- Схема и данные накатываются скриптами `schema.sql` и `data.sql` при старте
-  (`spring.sql.init.mode=always`), Hibernate только проверяет соответствие сущностей схеме
-  (`spring.jpa.hibernate.ddl-auto=validate`).
-- База в памяти, поэтому после перезапуска приложения корзина и заказы сбрасываются.
-  Консоль H2: http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:market`, пользователь `sa`, без пароля).
+- Схема и данные накатываются скриптами `schema.sql` и `data.sql` при старте через R2DBC
+  (`spring.sql.init.mode=always`).
+- База в памяти (`r2dbc:h2:mem:///market`), поэтому после перезапуска приложения корзина
+  и заказы сбрасываются.
 
 ## Загрузка товаров
 
@@ -119,10 +140,12 @@ title;price;image;description
 
 - `image` — имя файла изображения из загружаемых вместе со списком (может быть пустым);
 - `description` — последнее поле, может содержать `;`;
-- первая строка-заголовок пропускается; при ошибке в любой строке ни один товар не добавляется.
+- первая строка-заголовок пропускается; при ошибке в любой строке ни один товар не добавляется
+  и ни одно изображение не сохраняется: файлы пишутся только после успешного сохранения товаров.
 
 Загруженные изображения сохраняются в каталог из свойства `market.images.dir`
-(по умолчанию `./uploaded-images`, в Docker — `/app/uploaded-images`).
+(по умолчанию `./uploaded-images`, в Docker — `/app/uploaded-images`). Размер одного файла
+ограничен 10 МБ (`spring.webflux.multipart.max-disk-usage-per-part`).
 
 ## Требования
 
@@ -152,10 +175,10 @@ Maven устанавливать не нужно — в проекте есть 
 
 | Уровень | Инструменты | Классы |
 |---|---|---|
-| Модульные тесты сервисов | JUnit 5, Mockito | `*ServiceTest`, `ItemGridTest` |
-| Слой доступа к данным | `@DataJpaTest` | `*RepositoryTest` |
-| Веб-слой | `@WebMvcTest`, MockMvc, моки сервисов | `*ControllerTest` |
-| Интеграционные | `@SpringBootTest`, `@AutoConfigureMockMvc` | `*IntegrationTest`, `MyMarketAppApplicationTests` |
+| Модульные тесты сервисов | JUnit 5, Mockito, `StepVerifier` | `*ServiceTest`, `ItemGridTest` |
+| Слой доступа к данным | `@DataR2dbcTest`, `StepVerifier` | `*RepositoryTest` |
+| Веб-слой | `@WebFluxTest`, `WebTestClient`, моки сервисов | `*ControllerTest` |
+| Интеграционные | `@SpringBootTest`, `@AutoConfigureWebTestClient` | `*IntegrationTest`, `MyMarketAppApplicationTests` |
 
 Тесты лежат в тех же модулях, что и тестируемый код (`item/`, `cart/`, `order/`, `purchase/`,
 `image/`, `itemimport/`). Сквозной сценарий «витрина → корзина → покупка → заказ» —
@@ -165,7 +188,15 @@ Maven устанавливать не нужно — в проекте есть 
 в пакете `support` (`RepositoryTestBase`, `ControllerTestBase`, `IntegrationTestBase`), в котором собрана вся
 конфигурация, включая все `@MockitoBean`. Наследники не добавляют своей конфигурации, поэтому
 Spring TestContext Framework создаёт всего три контекста на весь прогон и берёт их из кеша.
-Интеграционные тесты помечены `@Transactional` и откатывают изменения после каждого теста.
+
+Реактивные тесты не откатывают транзакции автоматически, поэтому данные очищаются явно:
+
+- `RepositoryTestBase` перед каждым тестом очищает таблицы, и каждый тест репозитория создаёт
+  свои данные. Тесты репозиториев работают с отдельной базой `repository-tests`, чтобы не задевать
+  базу интеграционных тестов в той же JVM.
+- `IntegrationTestBase` после каждого теста очищает корзину и заказы и удаляет товары,
+  созданные тестом через `createItem(...)`. Стартовый каталог из `data.sql` при этом не меняется,
+  и тесты от него не зависят.
 
 ## Сборка и локальный запуск Executable JAR
 
