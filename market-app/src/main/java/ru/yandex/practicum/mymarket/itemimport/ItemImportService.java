@@ -10,6 +10,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCache;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ public class ItemImportService {
     private static final int FIELDS_COUNT = 4;
 
     private final ItemRepository itemRepository;
+    private final ItemCache itemCache;
     private final ImageService imageService;
 
     @Transactional
@@ -32,6 +34,7 @@ public class ItemImportService {
                 .map(this::parse)
                 .flatMap(items -> itemRepository.saveAll(items)
                         .then(storeImages(images))
+                        .then(itemCache.evictSummaries())
                         .thenReturn(items.size()));
     }
 
