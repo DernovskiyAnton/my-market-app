@@ -1,0 +1,110 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: API сервиса платежей витрины интернет-магазина
+  version: 1.0.0
+servers:
+  - url: http://localhost:8081
+tags:
+  - name: payments
+    description: Баланс счёта и платежи
+paths:
+  /api/balance:
+    get:
+      tags:
+        - payments
+      summary: Получить текущий баланс счёта
+      operationId: getBalance
+      responses:
+        '200':
+          description: Текущий баланс
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Balance'
+  /api/payments:
+    post:
+      tags:
+        - payments
+      summary: Оплатить заказ списанием суммы с баланса
+      operationId: pay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Платёж проведён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResult'
+        '400':
+          description: Некорректная сумма платежа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Недостаточно средств на балансе, платёж не проведён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    Balance:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: integer
+          format: int64
+          description: Баланс в рублях
+          example: 50000
+    PaymentRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Сумма к списанию в рублях
+          example: 5600
+    PaymentResult:
+      type: object
+      required:
+        - amount
+        - balance
+      properties:
+        amount:
+          type: integer
+          format: int64
+          description: Списанная сумма в рублях
+          example: 5600
+        balance:
+          type: integer
+          format: int64
+          description: Остаток на балансе после платежа в рублях
+          example: 44400
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - INSUFFICIENT_FUNDS
+            - INVALID_REQUEST
+          description: Код ошибки
+        message:
+          type: string
+          description: Описание ошибки
+          example: Недостаточно средств на балансе
