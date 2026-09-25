@@ -1,9 +1,9 @@
 package ru.yandex.practicum.mymarket.support;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import ru.yandex.practicum.mymarket.cart.CartService;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.ItemService;
@@ -11,11 +11,11 @@ import ru.yandex.practicum.mymarket.itemimport.ItemImportService;
 import ru.yandex.practicum.mymarket.order.OrderService;
 import ru.yandex.practicum.mymarket.purchase.PurchaseService;
 
-@WebMvcTest
+@WebFluxTest
 public abstract class ControllerTestBase {
 
     @Autowired
-    protected MockMvc mockMvc;
+    protected WebTestClient webTestClient;
 
     @MockitoBean
     protected ItemService itemService;
