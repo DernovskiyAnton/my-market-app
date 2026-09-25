@@ -1,19 +1,20 @@
 package ru.yandex.practicum.mymarket.item;
 
-import org.springframework.data.domain.Sort;
+import java.util.Comparator;
 
 public enum SortType {
-    NO(Sort.unsorted()),
-    ALPHA(Sort.by("title").ascending()),
-    PRICE(Sort.by("price").ascending());
+    NO(Comparator.comparingLong(ItemSummary::id)),
+    ALPHA(Comparator.comparing(ItemSummary::title, String.CASE_INSENSITIVE_ORDER)
+            .thenComparingLong(ItemSummary::id)),
+    PRICE(Comparator.comparingLong(ItemSummary::price).thenComparingLong(ItemSummary::id));
 
-    private final Sort sort;
+    private final Comparator<ItemSummary> comparator;
 
-    SortType(Sort sort) {
-        this.sort = sort;
+    SortType(Comparator<ItemSummary> comparator) {
+        this.comparator = comparator;
     }
 
-    public Sort toSort() {
-        return sort;
+    public Comparator<ItemSummary> comparator() {
+        return comparator;
     }
 }
