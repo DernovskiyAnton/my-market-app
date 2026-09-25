@@ -1,20 +1,18 @@
 package ru.yandex.practicum.mymarket.cart;
 
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
 
 @Repository
-public interface CartItemRepository extends JpaRepository<CartItem, Long> {
+public interface CartItemRepository extends R2dbcRepository<CartItem, Long> {
 
-    Optional<CartItem> findByItemId(Long itemId);
+    Mono<CartItem> findByItemId(Long itemId);
 
-    List<CartItem> findAllByItemIdIn(Collection<Long> itemIds);
+    Flux<CartItem> findAllByItemIdIn(Collection<Long> itemIds);
 
-    @EntityGraph(attributePaths = "item")
-    List<CartItem> findAllByOrderByIdAsc();
+    Flux<CartItem> findAllByOrderByIdAsc();
 }

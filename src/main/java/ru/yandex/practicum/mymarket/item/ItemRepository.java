@@ -1,19 +1,26 @@
 package ru.yandex.practicum.mymarket.item;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Repository
-public interface ItemRepository extends JpaRepository<Item, Long> {
+public interface ItemRepository extends R2dbcRepository<Item, Long> {
 
-    @Query("""
-            select i from Item i
-            where lower(i.title) like lower(concat('%', :search, '%'))
-               or lower(i.description) like lower(concat('%', :search, '%'))
-            """)
-    Page<Item> search(@Param("search") String search, Pageable pageable);
+    Flux<Item> findAllBy(Pageable pageable);
+
+    Flux<Item> findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(String title, String description,
+                                                                              Pageable pageable);
+
+    Mono<Long> countByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(String title, String description);
+
+    default Flux<Item> search(String search, Pageable pageable) {
+        return findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(search, search, pageable);
+    }
+
+    default Mono<Long> countSearch(String search) {
+        return countByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(search, search);
+    }
 }
