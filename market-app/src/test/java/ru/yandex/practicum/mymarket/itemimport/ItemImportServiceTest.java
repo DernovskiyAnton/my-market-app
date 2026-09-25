@@ -14,6 +14,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.image.ImageService;
 import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCache;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,9 @@ class ItemImportServiceTest {
     private ItemRepository itemRepository;
 
     @Mock
+    private ItemCache itemCache;
+
+    @Mock
     private ImageService imageService;
 
     @InjectMocks
@@ -47,7 +51,7 @@ class ItemImportServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void importItems_parsesCsvSavesItemsAndThenStoresImages() {
+    void importItems_parsesCsvSavesItemsStoresImagesAndEvictsCachedList() {
         FilePart csv = filePart("items.csv", """
                 title;price;image;description
                 Мяч;2500;ball.jpg;Кожаный мяч; размер 5
@@ -59,15 +63,17 @@ class ItemImportServiceTest {
         FilePart notSelected = filePart("", "");
         when(itemRepository.saveAll(anyList())).thenAnswer(invocation -> Flux.fromIterable(invocation.getArgument(0)));
         when(imageService.store(eq("ball.jpg"), any())).thenReturn(Mono.just("images/ball.jpg"));
+        when(itemCache.evictSummaries()).thenReturn(Mono.empty());
 
         StepVerifier.create(itemImportService.importItems(csv, List.of(image, notSelected)))
                 .expectNext(3)
                 .verifyComplete();
 
         ArgumentCaptor<List<Item>> captor = ArgumentCaptor.forClass(List.class);
-        InOrder inOrder = inOrder(itemRepository, imageService);
+        InOrder inOrder = inOrder(itemRepository, imageService, itemCache);
         inOrder.verify(itemRepository).saveAll(captor.capture());
         inOrder.verify(imageService).store(eq("ball.jpg"), any());
+        inOrder.verify(itemCache).evictSummaries();
         verify(imageService, never()).store(eq(""), any());
         assertThat(captor.getValue())
                 .extracting(Item::getTitle, Item::getPrice, Item::getImgPath, Item::getDescription)
@@ -82,7 +88,7 @@ class ItemImportServiceTest {
         StepVerifier.create(itemImportService.importItems(filePart("items.csv", ""), List.of()))
                 .expectErrorMessage("Выберите CSV-файл со списком товаров")
                 .verify();
-        verifyNoInteractions(imageService, itemRepository);
+        verifyNoInteractions(imageService, itemRepository, itemCache);
     }
 
     @Test
@@ -94,7 +100,7 @@ class ItemImportServiceTest {
                         .isInstanceOf(ItemImportException.class)
                         .hasMessageContaining("Строка 2"))
                 .verify();
-        verifyNoInteractions(imageService, itemRepository);
+        verifyNoInteractions(imageService, itemRepository, itemCache);
     }
 
     @Test

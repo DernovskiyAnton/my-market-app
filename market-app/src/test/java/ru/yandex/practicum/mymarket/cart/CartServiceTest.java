@@ -10,9 +10,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCache;
+import ru.yandex.practicum.mymarket.item.ItemCard;
 import ru.yandex.practicum.mymarket.item.ItemDto;
-import ru.yandex.practicum.mymarket.item.ItemRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -32,14 +32,14 @@ class CartServiceTest {
     private CartItemRepository cartItemRepository;
 
     @Mock
-    private ItemRepository itemRepository;
+    private ItemCache itemCache;
 
     @InjectMocks
     private CartService cartService;
 
     @Test
     void changeQuantity_plus_addsNewItemToCart() {
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
@@ -54,7 +54,7 @@ class CartServiceTest {
     @Test
     void changeQuantity_plus_incrementsExistingItem() {
         CartItem cartItem = new CartItem(1L, 2);
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
 
@@ -66,7 +66,7 @@ class CartServiceTest {
     @Test
     void changeQuantity_minus_decrementsQuantity() {
         CartItem cartItem = new CartItem(1L, 2);
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemRepository.save(cartItem)).thenReturn(Mono.just(cartItem));
 
@@ -79,7 +79,7 @@ class CartServiceTest {
     @Test
     void changeQuantity_minus_removesItemWhenLastOne() {
         CartItem cartItem = new CartItem(1L, 1);
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemRepository.delete(cartItem)).thenReturn(Mono.empty());
 
@@ -90,7 +90,7 @@ class CartServiceTest {
 
     @Test
     void changeQuantity_minus_doesNothingWhenItemNotInCart() {
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.changeQuantity(1L, CartAction.MINUS)).verifyComplete();
@@ -102,7 +102,7 @@ class CartServiceTest {
     @Test
     void changeQuantity_delete_removesItemFromCart() {
         CartItem cartItem = new CartItem(1L, 5);
-        when(itemRepository.existsById(1L)).thenReturn(Mono.just(true));
+        when(itemCache.getCard(1L)).thenReturn(Mono.just(item(1L, 100)));
         when(cartItemRepository.findByItemId(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemRepository.delete(cartItem)).thenReturn(Mono.empty());
 
@@ -113,7 +113,7 @@ class CartServiceTest {
 
     @Test
     void changeQuantity_unknownItem_returnsNotFound() {
-        when(itemRepository.existsById(42L)).thenReturn(Mono.just(false));
+        when(itemCache.getCard(42L)).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.changeQuantity(42L, CartAction.PLUS))
                 .expectError(NotFoundException.class)
@@ -123,11 +123,11 @@ class CartServiceTest {
 
     @Test
     void getCartLines_joinsCartItemsWithItemsInCartOrder() {
-        Item ball = item(1L, 100);
-        Item rope = item(2L, 50);
+        ItemCard ball = item(1L, 100);
+        ItemCard rope = item(2L, 50);
         when(cartItemRepository.findAllByOrderByIdAsc())
                 .thenReturn(Flux.just(new CartItem(2L, 3), new CartItem(1L, 2)));
-        when(itemRepository.findAllById(List.of(2L, 1L))).thenReturn(Flux.just(ball, rope));
+        when(itemCache.getCards(List.of(2L, 1L))).thenReturn(Mono.just(Map.of(1L, ball, 2L, rope)));
 
         StepVerifier.create(cartService.getCartLines())
                 .expectNext(new CartLine(rope, 3), new CartLine(ball, 2))
@@ -135,10 +135,21 @@ class CartServiceTest {
     }
 
     @Test
+    void getCartLines_skipsItemsMissingInCatalog() {
+        when(cartItemRepository.findAllByOrderByIdAsc())
+                .thenReturn(Flux.just(new CartItem(1L, 1), new CartItem(9L, 1)));
+        when(itemCache.getCards(List.of(1L, 9L))).thenReturn(Mono.just(Map.of(1L, item(1L, 100))));
+
+        StepVerifier.create(cartService.getCartLines())
+                .expectNext(new CartLine(item(1L, 100), 1))
+                .verifyComplete();
+    }
+
+    @Test
     void getCart_returnsItemsAndTotal() {
         when(cartItemRepository.findAllByOrderByIdAsc())
                 .thenReturn(Flux.just(new CartItem(1L, 2), new CartItem(2L, 3)));
-        when(itemRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(item(1L, 100), item(2L, 50)));
+        when(itemCache.getCards(List.of(1L, 2L))).thenReturn(Mono.just(Map.of(1L, item(1L, 100), 2L, item(2L, 50))));
 
         StepVerifier.create(cartService.getCart())
                 .assertNext(cart -> {
@@ -157,7 +168,7 @@ class CartServiceTest {
         StepVerifier.create(cartService.getCart())
                 .expectNext(new CartDto(List.of(), 0))
                 .verifyComplete();
-        verifyNoInteractions(itemRepository);
+        verifyNoInteractions(itemCache);
     }
 
     @Test
@@ -195,9 +206,7 @@ class CartServiceTest {
         verify(cartItemRepository).deleteAll();
     }
 
-    private static Item item(long id, long price) {
-        Item item = new Item("Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
-        item.setId(id);
-        return item;
+    private static ItemCard item(long id, long price) {
+        return new ItemCard(id, "Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
     }
 }
