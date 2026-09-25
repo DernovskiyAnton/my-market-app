@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.reactive.result.view.Rendering;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.mymarket.payment.PaymentService;
 
 @Controller
 @RequestMapping("/cart/items")
@@ -16,6 +17,7 @@ import reactor.core.publisher.Mono;
 public class CartController {
 
     private final CartService cartService;
+    private final PaymentService paymentService;
 
     @GetMapping
     public Mono<Rendering> getCart() {
@@ -29,10 +31,15 @@ public class CartController {
     }
 
     private Mono<Rendering> renderCart() {
-        return cartService.getCart()
-                .map(cart -> Rendering.view("cart")
-                        .modelAttribute("items", cart.items())
-                        .modelAttribute("total", cart.total())
-                        .build());
+        return cartService.getCart().flatMap(cart -> {
+            Rendering.Builder<?> rendering = Rendering.view("cart")
+                    .modelAttribute("items", cart.items())
+                    .modelAttribute("total", cart.total());
+            if (cart.items().isEmpty()) {
+                return Mono.just(rendering.build());
+            }
+            return paymentService.checkAvailability(cart.total())
+                    .map(payment -> rendering.modelAttribute("payment", payment).build());
+        });
     }
 }
