@@ -9,7 +9,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
-import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemCard;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -102,9 +102,7 @@ class OrderServiceTest {
         return order;
     }
 
-    private static Item item(long id, long price) {
-        Item item = new Item("Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
-        item.setId(id);
-        return item;
+    private static ItemCard item(long id, long price) {
+        return new ItemCard(id, "Товар " + id, "Описание " + id, "images/" + id + ".jpg", price);
     }
 }

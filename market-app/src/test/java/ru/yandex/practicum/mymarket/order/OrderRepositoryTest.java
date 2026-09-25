@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.mymarket.item.Item;
+import ru.yandex.practicum.mymarket.item.ItemMapper;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
 import ru.yandex.practicum.mymarket.support.RepositoryTestBase;
 
@@ -37,7 +38,7 @@ class OrderRepositoryTest extends RepositoryTestBase {
 
     @Test
     void save_persistsOrderWithItems() {
-        Long orderId = saveOrder(250, new OrderItem(ball, 2), new OrderItem(rope, 1));
+        Long orderId = saveOrder(250, new OrderItem(ItemMapper.toCard(ball), 2), new OrderItem(ItemMapper.toCard(rope), 1));
 
         StepVerifier.create(orderRepository.findById(orderId).map(Order::getTotalSum))
                 .expectNext(250L)
@@ -52,7 +53,7 @@ class OrderRepositoryTest extends RepositoryTestBase {
 
     @Test
     void orderItem_keepsPriceAtPurchaseTime() {
-        Long orderId = saveOrder(100, new OrderItem(ball, 1));
+        Long orderId = saveOrder(100, new OrderItem(ItemMapper.toCard(ball), 1));
         ball.setPrice(500);
         itemRepository.save(ball).block();
 
@@ -63,8 +64,8 @@ class OrderRepositoryTest extends RepositoryTestBase {
 
     @Test
     void findAllByOrderByIdDesc_returnsNewestFirst() {
-        Long older = saveOrder(100, new OrderItem(ball, 1));
-        Long newer = saveOrder(200, new OrderItem(ball, 2));
+        Long older = saveOrder(100, new OrderItem(ItemMapper.toCard(ball), 1));
+        Long newer = saveOrder(200, new OrderItem(ItemMapper.toCard(ball), 2));
 
         StepVerifier.create(orderRepository.findAllByOrderByIdDesc().map(Order::getId))
                 .expectNext(newer, older)
@@ -73,9 +74,9 @@ class OrderRepositoryTest extends RepositoryTestBase {
 
     @Test
     void findAllByOrderIdIn_returnsItemsOfRequestedOrders() {
-        Long first = saveOrder(100, new OrderItem(ball, 1));
-        Long second = saveOrder(50, new OrderItem(rope, 1));
-        Long third = saveOrder(200, new OrderItem(ball, 2));
+        Long first = saveOrder(100, new OrderItem(ItemMapper.toCard(ball), 1));
+        Long second = saveOrder(50, new OrderItem(ItemMapper.toCard(rope), 1));
+        Long third = saveOrder(200, new OrderItem(ItemMapper.toCard(ball), 2));
 
         StepVerifier.create(orderItemRepository.findAllByOrderIdInOrderByIdAsc(List.of(first, third))
                         .map(OrderItem::getOrderId))
