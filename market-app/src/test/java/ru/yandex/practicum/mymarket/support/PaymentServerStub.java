@@ -8,6 +8,8 @@ import okhttp3.mockwebserver.RecordedRequest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,6 +23,7 @@ public class PaymentServerStub extends Dispatcher {
     private volatile long balance;
     private volatile boolean available;
     private volatile Runnable onPayment;
+    private final Map<String, MockResponse> overriddenResponses = new ConcurrentHashMap<>();
 
     public PaymentServerStub() {
         server.setDispatcher(this);
@@ -41,11 +44,16 @@ public class PaymentServerStub extends Dispatcher {
         available = true;
         onPayment = () -> {
         };
+        overriddenResponses.clear();
         requests.clear();
     }
 
     public void makeUnavailable() {
         available = false;
+    }
+
+    public void respondWith(String path, int status, String jsonBody) {
+        overriddenResponses.put(path, json(status, jsonBody));
     }
 
     public void onPayment(Runnable action) {
@@ -72,6 +80,10 @@ public class PaymentServerStub extends Dispatcher {
         requests.add(request);
         if (!available) {
             return new MockResponse().setResponseCode(500);
+        }
+        MockResponse overridden = overriddenResponses.get(request.getPath());
+        if (overridden != null) {
+            return overridden;
         }
         if ("GET".equals(request.getMethod()) && "/api/balance".equals(request.getPath())) {
             return json(200, "{\"amount\":" + balance + "}");

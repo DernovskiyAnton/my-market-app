@@ -98,6 +98,30 @@ class PaymentIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void cartPage_balanceRequestRejected_showsRequestRejectedMessageNotUnavailable() {
+        PAYMENT_SERVER.respondWith("/api/balance", 404, "{\"code\":\"INVALID_REQUEST\",\"message\":\"Нет такого ресурса\"}");
+
+        assertThat(getHtml("/cart/items")).contains(PaymentClientErrorException.MESSAGE)
+                .doesNotContain("Купить", PaymentUnavailableException.MESSAGE);
+    }
+
+    @Test
+    void buy_paymentRequestRejectedAsInvalid_isReportedAsClientErrorNotAsUnavailable() {
+        PAYMENT_SERVER.respondWith("/api/payments", 400,
+                "{\"code\":\"INVALID_REQUEST\",\"message\":\"Некорректный запрос: сумма должна быть положительной\"}");
+
+        webTestClient.post().uri("/buy").exchange()
+                .expectStatus().isEqualTo(502)
+                .expectBody(String.class)
+                .value(html -> assertThat(html)
+                        .contains(PaymentClientErrorException.MESSAGE, "Некорректный запрос: сумма должна быть положительной")
+                        .doesNotContain(PaymentUnavailableException.MESSAGE));
+
+        assertThat(countOrders()).isZero();
+        assertThat(getHtml("/cart/items")).contains("Оплачиваемый мяч");
+    }
+
+    @Test
     void buy_paymentServiceUnavailable_createsNoOrderAndKeepsCart() {
         PAYMENT_SERVER.makeUnavailable();
 
