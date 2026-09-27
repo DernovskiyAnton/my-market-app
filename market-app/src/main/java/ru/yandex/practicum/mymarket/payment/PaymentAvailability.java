@@ -15,4 +15,8 @@ public record PaymentAvailability(boolean available, Long balance, String messag
     public static PaymentAvailability serviceUnavailable() {
         return new PaymentAvailability(false, null, PaymentUnavailableException.MESSAGE);
     }
+
+    public static PaymentAvailability requestRejected() {
+        return new PaymentAvailability(false, null, PaymentClientErrorException.MESSAGE);
+    }
 }
