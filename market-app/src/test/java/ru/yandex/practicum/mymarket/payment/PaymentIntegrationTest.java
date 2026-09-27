@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.yandex.practicum.mymarket.support.IntegrationTestBase;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
@@ -65,7 +67,24 @@ class PaymentIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void buy_insufficientFunds_rollsBackOrderAndKeepsCart() {
+    void buy_paymentRequestIsSentWithoutOpenDatabaseTransaction() {
+        PAYMENT_SERVER.reset(5000);
+        AtomicLong uncommittedSessionsDuringPayment = new AtomicLong(-1);
+        AtomicLong ordersDuringPayment = new AtomicLong(-1);
+        PAYMENT_SERVER.onPayment(() -> {
+            uncommittedSessionsDuringPayment.set(countSessionsWithUncommittedChanges());
+            ordersDuringPayment.set(countOrders());
+        });
+
+        webTestClient.post().uri("/buy").exchange().expectStatus().is3xxRedirection();
+
+        assertThat(uncommittedSessionsDuringPayment).hasValue(0);
+        assertThat(ordersDuringPayment).hasValue(0);
+        assertThat(countOrders()).isEqualTo(1);
+    }
+
+    @Test
+    void buy_insufficientFunds_createsNoOrderAndKeepsCart() {
         PAYMENT_SERVER.reset(100);
 
         webTestClient.post().uri("/buy").exchange()
@@ -79,7 +98,7 @@ class PaymentIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void buy_paymentServiceUnavailable_rollsBackOrderAndKeepsCart() {
+    void buy_paymentServiceUnavailable_createsNoOrderAndKeepsCart() {
         PAYMENT_SERVER.makeUnavailable();
 
         webTestClient.post().uri("/buy").exchange()
@@ -92,6 +111,13 @@ class PaymentIntegrationTest extends IntegrationTestBase {
 
     private long countOrders() {
         return databaseClient.sql("SELECT COUNT(*) AS cnt FROM orders")
+                .map(row -> row.get("cnt", Long.class))
+                .one()
+                .block();
+    }
+
+    private long countSessionsWithUncommittedChanges() {
+        return databaseClient.sql("SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.SESSIONS WHERE CONTAINS_UNCOMMITTED")
                 .map(row -> row.get("cnt", Long.class))
                 .one()
                 .block();

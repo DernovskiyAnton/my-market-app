@@ -20,6 +20,7 @@ public class PaymentServerStub extends Dispatcher {
     private final List<RecordedRequest> requests = new CopyOnWriteArrayList<>();
     private volatile long balance;
     private volatile boolean available;
+    private volatile Runnable onPayment;
 
     public PaymentServerStub() {
         server.setDispatcher(this);
@@ -38,11 +39,17 @@ public class PaymentServerStub extends Dispatcher {
     public void reset(long initialBalance) {
         balance = initialBalance;
         available = true;
+        onPayment = () -> {
+        };
         requests.clear();
     }
 
     public void makeUnavailable() {
         available = false;
+    }
+
+    public void onPayment(Runnable action) {
+        onPayment = action;
     }
 
     public long balance() {
@@ -70,6 +77,7 @@ public class PaymentServerStub extends Dispatcher {
             return json(200, "{\"amount\":" + balance + "}");
         }
         if ("POST".equals(request.getMethod()) && "/api/payments".equals(request.getPath())) {
+            onPayment.run();
             Matcher matcher = AMOUNT.matcher(request.getBody().clone().readUtf8());
             if (!matcher.find()) {
                 return json(400, "{\"code\":\"INVALID_REQUEST\",\"message\":\"Некорректный запрос\"}");
