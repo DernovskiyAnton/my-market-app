@@ -329,6 +329,10 @@ docker compose up --build
 - Витрина: http://localhost:8080
 - Сервис платежей: http://localhost:8081/api/balance
 
+У Redis и сервиса платежей есть healthcheck (`redis-cli ping` и `GET /api/balance`). Витрина
+запускается только после того, как оба сервиса стали `healthy` (`depends_on` с `condition: service_healthy`),
+поэтому при старте она сразу может получить баланс и работать с кешем.
+
 Остановить и удалить контейнеры:
 
 ```bash
