@@ -136,7 +136,7 @@ market-app/src/main/java/ru/yandex/practicum/mymarket
 ├── purchase/    покупка: PurchaseService (оплата, затем заказ и очистка корзины), PurchaseController
 ├── payment/     интеграция с сервисом платежей: PaymentClientConfig, PaymentService,
 │                PaymentProperties, PaymentAvailability, PaymentRejectedException,
-│                PaymentUnavailableException
+│                PaymentClientErrorException, PaymentUnavailableException
 ├── image/       изображения товаров: ImageService, ImageController
 ├── itemimport/  загрузка товаров из CSV: ItemImportService, ItemImportController, ItemImportException
 └── common/      NotFoundException, EmptyCartException, GlobalExceptionHandler, ClockConfig
@@ -151,8 +151,14 @@ market-app/src/main/java/ru/yandex/practicum/mymarket
 `PaymentService` оборачивает клиент:
 
 - ограничивает время ответа таймаутом `market.payment.timeout` (по умолчанию 3 с);
-- переводит ответ `409` в `PaymentRejectedException` с сообщением от сервиса платежей;
-- переводит остальные ошибки (сервис не запущен, `5xx`, таймаут) в `PaymentUnavailableException`;
+- переводит ответ `409` (недостаточно средств) в `PaymentRejectedException` с сообщением от сервиса платежей,
+  страница ошибки отдаётся со статусом `409`;
+- переводит остальные ответы `4xx` (например, `400 INVALID_REQUEST`) в `PaymentClientErrorException`:
+  сервис жив, но отверг запрос витрины. Такая ошибка логируется как `ERROR` с методом, адресом, статусом
+  и телом ответа, пользователь видит сообщение «Сервис платежей отклонил запрос», страница — со статусом
+  `502 Bad Gateway`;
+- переводит отказ соединения, таймаут и ответы `5xx` в `PaymentUnavailableException` («сервис платежей
+  недоступен», статус `503`), причина логируется как `WARN`;
 - для страницы корзины возвращает `PaymentAvailability`: можно ли оплатить заказ, баланс и сообщение.
 
 Адрес сервиса задаётся свойством `market.payment.base-url` (по умолчанию `http://localhost:8081`).
@@ -260,7 +266,8 @@ Maven устанавливать не нужно — в проекте есть 
   - что витрина, карточка и корзина отдают данные из кеша после изменения БД;
   - частичные попадания в кеш и сброс кеша списка.
 - `PaymentIntegrationTest` проверяет HTTP-запросы в сервис платежей: запрос баланса со страницы корзины,
-  тело платежа при покупке, отсутствие открытой транзакции БД в момент оплаты, отказ в оплате (`409`)
+  тело платежа при покупке, отсутствие открытой транзакции БД в момент оплаты, отказ в оплате (`409`),
+  отклонённый как некорректный запрос (`400`/`404` — не выдаётся за недоступность сервиса)
   и недоступность сервиса (заказ не создаётся).
   Сервис платежей заменён заглушкой `PaymentServerStub` на MockWebServer: она ведёт баланс
   и записывает запросы.
