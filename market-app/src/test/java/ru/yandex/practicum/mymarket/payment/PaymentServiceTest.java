@@ -119,6 +119,42 @@ class PaymentServiceTest {
     }
 
     @Test
+    void pay_badRequest_isReportedAsClientErrorNotAsUnavailable() {
+        when(paymentsApi.pay(any())).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
+                HttpHeaders.EMPTY, "{\"code\":\"INVALID_REQUEST\"}".getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8)));
+
+        StepVerifier.create(paymentService.pay(300))
+                .expectErrorSatisfies(error -> {
+                    assertThat(error).isInstanceOf(PaymentClientErrorException.class)
+                            .hasMessageStartingWith(PaymentClientErrorException.MESSAGE);
+                    assertThat(((PaymentClientErrorException) error).getStatus()).isEqualTo(400);
+                })
+                .verify();
+    }
+
+    @Test
+    void getBalance_notFound_isReportedAsClientError() {
+        when(paymentsApi.getBalance()).thenReturn(Mono.error(WebClientResponseException.create(404, "Not Found",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
+
+        StepVerifier.create(paymentService.getBalance())
+                .expectErrorSatisfies(error -> assertThat(error).isInstanceOf(PaymentClientErrorException.class)
+                        .isNotInstanceOf(PaymentUnavailableException.class))
+                .verify();
+    }
+
+    @Test
+    void checkAvailability_clientError_forbidsPurchaseWithRequestRejectedMessage() {
+        when(paymentsApi.getBalance()).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
+
+        StepVerifier.create(paymentService.checkAvailability(100))
+                .expectNext(PaymentAvailability.requestRejected())
+                .verifyComplete();
+    }
+
+    @Test
     void pay_serverErrorOrConnectionFailure_isReportedAsUnavailable() {
         when(paymentsApi.pay(any())).thenReturn(Mono.error(WebClientResponseException.create(500, "Error",
                 HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));

@@ -6,6 +6,7 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.common.NotFoundException;
 import ru.yandex.practicum.mymarket.item.ItemDto;
 import ru.yandex.practicum.mymarket.payment.PaymentAvailability;
+import ru.yandex.practicum.mymarket.payment.PaymentClientErrorException;
 import ru.yandex.practicum.mymarket.payment.PaymentUnavailableException;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
 
@@ -55,6 +56,18 @@ class CartControllerTest extends ControllerTestBase {
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains(PaymentUnavailableException.MESSAGE)
                         .doesNotContain("Купить", "Баланс:"));
+    }
+
+    @Test
+    void getCart_paymentRequestRejected_hidesBuyButtonAndShowsMessage() {
+        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.requestRejected()));
+
+        webTestClient.get().uri("/cart/items").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains(PaymentClientErrorException.MESSAGE)
+                        .doesNotContain("Купить", PaymentUnavailableException.MESSAGE));
     }
 
     @Test

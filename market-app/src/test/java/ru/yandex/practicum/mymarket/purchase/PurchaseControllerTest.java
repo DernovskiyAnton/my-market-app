@@ -3,6 +3,7 @@ package ru.yandex.practicum.mymarket.purchase;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.common.EmptyCartException;
+import ru.yandex.practicum.mymarket.payment.PaymentClientErrorException;
 import ru.yandex.practicum.mymarket.payment.PaymentRejectedException;
 import ru.yandex.practicum.mymarket.payment.PaymentUnavailableException;
 import ru.yandex.practicum.mymarket.support.ControllerTestBase;
@@ -48,5 +49,17 @@ class PurchaseControllerTest extends ControllerTestBase {
         webTestClient.post().uri("/buy").exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody(String.class).value(html -> assertThat(html).contains(PaymentUnavailableException.MESSAGE));
+    }
+
+    @Test
+    void buy_paymentRequestRejectedByService_rendersBadGatewayPage() {
+        when(purchaseService.buy())
+                .thenReturn(Mono.error(new PaymentClientErrorException(400, "Некорректный запрос", null)));
+
+        webTestClient.post().uri("/buy").exchange()
+                .expectStatus().isEqualTo(502)
+                .expectBody(String.class)
+                .value(html -> assertThat(html).contains(PaymentClientErrorException.MESSAGE, "Некорректный запрос")
+                        .doesNotContain(PaymentUnavailableException.MESSAGE));
     }
 }
