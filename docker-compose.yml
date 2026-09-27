@@ -18,6 +18,12 @@ services:
       - "8081:8081"
     environment:
       PAYMENT_ACCOUNT_INITIAL_BALANCE: "50000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/api/balance"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   market-app:
     build:
@@ -36,7 +42,7 @@ services:
       redis:
         condition: service_healthy
       payment-service:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   market-images:
