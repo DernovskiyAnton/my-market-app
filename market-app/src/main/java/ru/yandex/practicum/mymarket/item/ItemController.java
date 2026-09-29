@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -14,6 +15,7 @@ import org.springframework.web.reactive.result.view.Rendering;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.cart.CartService;
+import ru.yandex.practicum.mymarket.user.MarketUser;
 
 @Controller
 @RequiredArgsConstructor
@@ -31,8 +33,9 @@ public class ItemController {
                                     @RequestParam(defaultValue = "NO") SortType sort,
                                     @RequestParam(defaultValue = "" + DEFAULT_PAGE_NUMBER) @Min(1) int pageNumber,
                                     @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE)
-                                    int pageSize) {
-        return itemService.findItems(search, sort, pageNumber, pageSize)
+                                    int pageSize,
+                                    @AuthenticationPrincipal MarketUser user) {
+        return itemService.findItems(userIdOrNull(user), search, sort, pageNumber, pageSize)
                 .map(page -> Rendering.view("items")
                         .modelAttribute("items", ItemGrid.toRows(page.getContent()))
                         .modelAttribute("search", search)
@@ -42,7 +45,8 @@ public class ItemController {
     }
 
     @PostMapping("/items")
-    public Mono<String> changeCartItemFromCatalog(@Valid @ModelAttribute CatalogCartForm form) {
+    public Mono<String> changeCartItemFromCatalog(@Valid @ModelAttribute CatalogCartForm form,
+                                                  @AuthenticationPrincipal MarketUser user) {
         String catalogUrl = UriComponentsBuilder.fromPath("/items")
                 .queryParam("search", form.search())
                 .queryParam("sort", form.sort())
@@ -50,20 +54,25 @@ public class ItemController {
                 .queryParam("pageSize", form.pageSize())
                 .encode()
                 .toUriString();
-        return cartService.changeQuantity(form.id(), form.action())
+        return cartService.changeQuantity(user.getId(), form.id(), form.action())
                 .thenReturn("redirect:" + catalogUrl);
     }
 
     @GetMapping("/items/{id}")
-    public Mono<Rendering> getItem(@PathVariable long id) {
-        return itemService.getItem(id).map(ItemController::renderItem);
+    public Mono<Rendering> getItem(@PathVariable long id, @AuthenticationPrincipal MarketUser user) {
+        return itemService.getItem(userIdOrNull(user), id).map(ItemController::renderItem);
     }
 
     @PostMapping("/items/{id}")
-    public Mono<Rendering> changeCartItemFromItemPage(@PathVariable long id, @Valid @ModelAttribute ItemCartForm form) {
-        return cartService.changeQuantity(id, form.action())
-                .then(Mono.defer(() -> itemService.getItem(id)))
+    public Mono<Rendering> changeCartItemFromItemPage(@PathVariable long id, @Valid @ModelAttribute ItemCartForm form,
+                                                      @AuthenticationPrincipal MarketUser user) {
+        return cartService.changeQuantity(user.getId(), id, form.action())
+                .then(Mono.defer(() -> itemService.getItem(user.getId(), id)))
                 .map(ItemController::renderItem);
+    }
+
+    private static Long userIdOrNull(MarketUser user) {
+        return user == null ? null : user.getId();
     }
 
     private static Rendering renderItem(ItemDto item) {

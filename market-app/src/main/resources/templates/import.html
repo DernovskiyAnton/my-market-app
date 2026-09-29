@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 
 <head>
     <meta charset="utf-8">
@@ -12,14 +12,7 @@
     <div class="container p-2">
         <div class="row p-2">
             <div class="col">
-                <div class="hstack gap-3">
-                    <h2>
-                        <span class="badge text-bg-success">Витрина магазина</span>
-                    </h2>
-                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
-                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
-                    <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
-                </div>
+                <div th:replace="~{fragments/header :: header}"></div>
             </div>
         </div>
         <div class="row p-2">

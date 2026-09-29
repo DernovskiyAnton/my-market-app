@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="utf-8">
+    <title>Витрина магазина</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+</head>
+
+<body class="bg-light">
+    <div class="container p-2">
+        <div class="row p-2">
+            <div class="col">
+                <div th:replace="~{fragments/header :: header}"></div>
+            </div>
+        </div>
+        <div class="row p-2 justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="alert alert-warning" role="alert" th:if="${param.required}">
+                    Войдите, чтобы открыть корзину, заказы и покупать товары
+                </div>
+                <div class="alert alert-danger" role="alert" th:if="${param.error}">
+                    Неверный логин или пароль
+                </div>
+                <div class="card">
+                    <div class="card-header"><b>Вход</b></div>
+                    <div class="card-body">
+                        <form th:action="@{/login}" method="post">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Логин</label>
+                                <input class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Пароль</label>
+                                <input class="form-control" type="password" id="password" name="password" autocomplete="current-password" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 bi bi-box-arrow-in-right"> Войти</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="header" class="hstack gap-3">
+    <h2>
+        <span class="badge text-bg-success">Витрина магазина</span>
+    </h2>
+    <div class="ms-auto hstack gap-2">
+        <a th:if="${isAdmin}" href="/admin/items" class="btn btn-outline-secondary bi bi-upload"> Загрузить товары</a>
+        <a sec:authorize="isAuthenticated()" href="/orders" class="btn btn-secondary bi bi-file-earmark-text"> Заказы</a>
+        <a sec:authorize="isAuthenticated()" href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+        <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
+        <span sec:authorize="isAuthenticated()" class="text-muted bi bi-person-circle"> <span sec:authentication="name">user</span></span>
+        <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="m-0">
+            <button type="submit" class="btn btn-outline-danger bi bi-box-arrow-right"> Выйти</button>
+        </form>
+        <a sec:authorize="isAnonymous()" href="/login" class="btn btn-success bi bi-box-arrow-in-right"> Войти</a>
+    </div>
+</div>
+</body>
+</html>

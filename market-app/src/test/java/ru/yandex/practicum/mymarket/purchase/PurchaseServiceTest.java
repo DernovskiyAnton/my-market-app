@@ -33,6 +33,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,6 +42,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseServiceTest {
+
+    private static final long USER_ID = 1L;
 
     private static final Instant NOW = Instant.parse("2026-01-15T10:00:00Z");
 
@@ -69,21 +72,22 @@ class PurchaseServiceTest {
     void buy_paysFirstThenSavesOrderAndClearsCartInTransaction() {
         givenCart();
         givenTransactionalOperatorPassesThrough();
-        when(paymentService.pay(230)).thenReturn(Mono.just(770L));
+        when(paymentService.pay("alice", 230)).thenReturn(Mono.just(770L));
         when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.just(10L));
-        when(cartService.clear()).thenReturn(Mono.empty());
+        when(cartService.clear(USER_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(purchaseService.buy())
+        StepVerifier.create(purchaseService.buy(USER_ID, "alice"))
                 .expectNext(10L)
                 .verifyComplete();
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = inOrder(paymentService, transactionalOperator, orderService, cartService);
-        inOrder.verify(paymentService).pay(230);
+        inOrder.verify(paymentService).pay("alice", 230);
         inOrder.verify(orderService).create(orderCaptor.capture(), itemsCaptor.capture());
         inOrder.verify(transactionalOperator).transactional(any(Mono.class));
-        inOrder.verify(cartService).clear();
+        inOrder.verify(cartService).clear(USER_ID);
+        assertThat(orderCaptor.getValue().getUserId()).isEqualTo(USER_ID);
         assertThat(orderCaptor.getValue().getCreatedAt()).isEqualTo(LocalDateTime.ofInstant(NOW, ZoneOffset.UTC));
         assertThat(orderCaptor.getValue().getTotalSum()).isEqualTo(230);
         assertThat(itemsCaptor.getValue())
@@ -94,26 +98,26 @@ class PurchaseServiceTest {
     @Test
     void buy_paymentRejected_doesNotTouchOrdersOrCart() {
         givenCart();
-        when(paymentService.pay(230)).thenReturn(Mono.error(new PaymentRejectedException("Недостаточно средств")));
+        when(paymentService.pay("alice", 230)).thenReturn(Mono.error(new PaymentRejectedException("Недостаточно средств")));
 
-        StepVerifier.create(purchaseService.buy())
+        StepVerifier.create(purchaseService.buy(USER_ID, "alice"))
                 .expectError(PaymentRejectedException.class)
                 .verify();
         verify(orderService, never()).create(any(), anyList());
-        verify(cartService, never()).clear();
+        verify(cartService, never()).clear(anyLong());
         verifyNoInteractions(transactionalOperator);
     }
 
     @Test
     void buy_paymentServiceUnavailable_doesNotTouchOrdersOrCart() {
         givenCart();
-        when(paymentService.pay(230)).thenReturn(Mono.error(new PaymentUnavailableException(new RuntimeException())));
+        when(paymentService.pay("alice", 230)).thenReturn(Mono.error(new PaymentUnavailableException(new RuntimeException())));
 
-        StepVerifier.create(purchaseService.buy())
+        StepVerifier.create(purchaseService.buy(USER_ID, "alice"))
                 .expectError(PaymentUnavailableException.class)
                 .verify();
         verify(orderService, never()).create(any(), anyList());
-        verify(cartService, never()).clear();
+        verify(cartService, never()).clear(anyLong());
         verifyNoInteractions(transactionalOperator);
     }
 
@@ -121,25 +125,25 @@ class PurchaseServiceTest {
     void buy_orderSavingFailsAfterPayment_returnsErrorAndKeepsCart() {
         givenCart();
         givenTransactionalOperatorPassesThrough();
-        when(paymentService.pay(230)).thenReturn(Mono.just(770L));
+        when(paymentService.pay("alice", 230)).thenReturn(Mono.just(770L));
         when(orderService.create(any(Order.class), anyList())).thenReturn(Mono.error(new IllegalStateException("db")));
 
-        StepVerifier.create(purchaseService.buy())
+        StepVerifier.create(purchaseService.buy(USER_ID, "alice"))
                 .expectErrorMessage("db")
                 .verify();
-        verify(cartService, never()).clear();
+        verify(cartService, never()).clear(anyLong());
     }
 
     @Test
     void buy_emptyCart_returnsErrorWithoutPayment() {
-        when(cartService.getCartLines()).thenReturn(Flux.empty());
+        when(cartService.getCartLines(USER_ID)).thenReturn(Flux.empty());
 
-        StepVerifier.create(purchaseService.buy())
+        StepVerifier.create(purchaseService.buy(USER_ID, "alice"))
                 .expectError(EmptyCartException.class)
                 .verify();
         verify(orderService, never()).create(any(), anyList());
-        verify(paymentService, never()).pay(anyLong());
-        verify(cartService, never()).clear();
+        verify(paymentService, never()).pay(anyString(), anyLong());
+        verify(cartService, never()).clear(anyLong());
     }
 
     @SuppressWarnings("unchecked")
@@ -148,7 +152,7 @@ class PurchaseServiceTest {
     }
 
     private void givenCart() {
-        when(cartService.getCartLines()).thenReturn(Flux.just(
+        when(cartService.getCartLines(USER_ID)).thenReturn(Flux.just(
                 new CartLine(item(1L, 100), 2),
                 new CartLine(item(2L, 30), 1)));
     }

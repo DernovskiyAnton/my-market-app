@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientService;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -17,9 +19,14 @@ import reactor.core.publisher.Flux;
 import ru.yandex.practicum.mymarket.item.Item;
 import ru.yandex.practicum.mymarket.item.ItemCache;
 import ru.yandex.practicum.mymarket.item.ItemRepository;
+import ru.yandex.practicum.mymarket.user.MarketUser;
+import ru.yandex.practicum.mymarket.user.UserRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockAuthentication;
 
 @SpringBootTest(properties = "market.images.dir=target/test-images")
 @AutoConfigureWebTestClient
@@ -40,6 +47,11 @@ public abstract class IntegrationTestBase {
     static void paymentServiceProperties(DynamicPropertyRegistry registry) {
         registry.add("market.payment.base-url", PAYMENT_SERVER::baseUrl);
         registry.add("market.payment.timeout", () -> "2s");
+        registry.add("spring.security.oauth2.client.provider.market-auth.token-uri", PAYMENT_SERVER::tokenUri);
+        registry.add("spring.security.oauth2.client.registration.payment-service.client-id",
+                () -> PaymentServerStub.CLIENT_ID);
+        registry.add("spring.security.oauth2.client.registration.payment-service.client-secret",
+                () -> PaymentServerStub.CLIENT_SECRET);
     }
 
     @Autowired
@@ -57,11 +69,18 @@ public abstract class IntegrationTestBase {
     @Autowired
     private ItemRepository itemRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ReactiveOAuth2AuthorizedClientService authorizedClientService;
+
     private final List<Long> createdItemIds = new ArrayList<>();
 
     @BeforeEach
     void resetExternalServices() {
         PAYMENT_SERVER.reset(DEFAULT_BALANCE);
+        forgetPaymentServiceToken();
         flushRedis();
     }
 
@@ -88,6 +107,26 @@ public abstract class IntegrationTestBase {
                 .map(Item::getId)
                 .doOnNext(createdItemIds::add)
                 .blockLast();
+    }
+
+    protected MarketUser user(String username) {
+        return userRepository.findByUsername(username).map(MarketUser::of).blockOptional()
+                .orElseThrow(() -> new IllegalStateException("Нет пользователя " + username));
+    }
+
+    protected WebTestClient as(String username) {
+        MarketUser user = user(username);
+        return webTestClient
+                .mutateWith(mockAuthentication(new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities())))
+                .mutateWith(csrf());
+    }
+
+    protected WebTestClient asAlice() {
+        return as("alice");
+    }
+
+    protected void forgetPaymentServiceToken() {
+        authorizedClientService.removeAuthorizedClient("payment-service", "payment-service").block();
     }
 
     protected void flushRedis() {

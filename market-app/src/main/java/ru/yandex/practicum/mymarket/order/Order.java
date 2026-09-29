@@ -17,11 +17,14 @@ public class Order {
     @Id
     private Long id;
 
+    private Long userId;
+
     private LocalDateTime createdAt;
 
     private long totalSum;
 
-    public Order(LocalDateTime createdAt, long totalSum) {
+    public Order(Long userId, LocalDateTime createdAt, long totalSum) {
+        this.userId = userId;
         this.createdAt = createdAt;
         this.totalSum = totalSum;
     }

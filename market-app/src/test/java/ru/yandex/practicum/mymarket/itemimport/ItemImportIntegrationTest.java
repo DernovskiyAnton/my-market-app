@@ -47,14 +47,14 @@ class ItemImportIntegrationTest extends IntegrationTestBase {
                 """.getBytes(StandardCharsets.UTF_8)).filename("items.csv");
         builder.part("images", new byte[]{9, 8, 7}).filename("puck.png");
 
-        webTestClient.post().uri("/admin/items/import")
+        as("admin").post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(builder.build()))
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().location("/admin/items?imported=2");
 
-        StepVerifier.create(itemService.findItems("импортированный мяч", SortType.NO, 1, 10))
+        StepVerifier.create(itemService.findItems(null, "импортированный мяч", SortType.NO, 1, 10))
                 .assertNext(page -> assertThat(page.getContent()).singleElement()
                         .extracting(ItemDto::title, ItemDto::price, ItemDto::imgPath)
                         .containsExactly("Импортированный мяч", 350L, "images/puck.png"))
@@ -72,7 +72,7 @@ class ItemImportIntegrationTest extends IntegrationTestBase {
                 .getBytes(StandardCharsets.UTF_8)).filename("items.csv");
         builder.part("images", new byte[]{1}).filename("rejected.png");
 
-        webTestClient.post().uri("/admin/items/import")
+        as("admin").post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(builder.build()))
                 .exchange()

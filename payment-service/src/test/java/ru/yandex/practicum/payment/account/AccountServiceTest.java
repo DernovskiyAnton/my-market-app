@@ -7,6 +7,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AccountServiceTest {
@@ -15,52 +17,63 @@ class AccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        accountService = new AccountService(new AccountProperties(1000));
+        accountService = new AccountService(new AccountProperties(1000, Map.of("bob", 50L)));
     }
 
     @Test
-    void getBalance_returnsInitialBalance() {
-        StepVerifier.create(accountService.getBalance())
+    void getBalance_newAccount_startsWithInitialBalance() {
+        StepVerifier.create(accountService.getBalance("alice"))
                 .expectNext(1000L)
                 .verifyComplete();
     }
 
     @Test
-    void withdraw_decreasesBalance() {
-        StepVerifier.create(accountService.withdraw(300))
+    void getBalance_configuredAccount_startsWithItsOwnBalance() {
+        StepVerifier.create(accountService.getBalance("bob"))
+                .expectNext(50L)
+                .verifyComplete();
+    }
+
+    @Test
+    void withdraw_decreasesOnlyOwnersBalance() {
+        StepVerifier.create(accountService.withdraw("alice", 300))
                 .expectNext(700L)
                 .verifyComplete();
-        StepVerifier.create(accountService.getBalance())
+
+        StepVerifier.create(accountService.getBalance("alice"))
                 .expectNext(700L)
+                .verifyComplete();
+        StepVerifier.create(accountService.getBalance("carol"))
+                .expectNext(1000L)
                 .verifyComplete();
     }
 
     @Test
     void withdraw_wholeBalance_leavesZero() {
-        StepVerifier.create(accountService.withdraw(1000))
+        StepVerifier.create(accountService.withdraw("alice", 1000))
                 .expectNext(0L)
                 .verifyComplete();
     }
 
     @Test
     void withdraw_moreThanBalance_failsAndKeepsBalance() {
-        StepVerifier.create(accountService.withdraw(1001))
+        StepVerifier.create(accountService.withdraw("bob", 51))
                 .expectErrorSatisfies(error -> assertThat(error)
                         .isInstanceOf(InsufficientFundsException.class)
-                        .hasMessageContaining("1001")
-                        .hasMessageContaining("1000"))
+                        .hasMessageContaining("51")
+                        .hasMessageContaining("50"))
                 .verify();
-        StepVerifier.create(accountService.getBalance())
-                .expectNext(1000L)
+        StepVerifier.create(accountService.getBalance("bob"))
+                .expectNext(50L)
                 .verifyComplete();
     }
 
     @Test
     void withdraw_nonPositiveAmount_fails() {
-        StepVerifier.create(accountService.withdraw(0))
+        StepVerifier.create(accountService.withdraw("alice", 0))
                 .expectError(IllegalArgumentException.class)
                 .verify();
-        StepVerifier.create(accountService.withdraw(-5))
+        StepVerifier.create(accountService.withdraw("alice", -5))
                 .expectError(IllegalArgumentException.class)
                 .verify();
     }
@@ -70,14 +83,14 @@ class AccountServiceTest {
         long succeeded = Flux.range(0, 50)
                 .parallel()
                 .runOn(Schedulers.parallel())
-                .flatMap(i -> accountService.withdraw(30).onErrorResume(InsufficientFundsException.class,
-                        e -> Mono.empty()))
+                .flatMap(i -> accountService.withdraw("alice", 30)
+                        .onErrorResume(InsufficientFundsException.class, e -> Mono.empty()))
                 .sequential()
                 .count()
                 .block();
 
         assertThat(succeeded).isEqualTo(33);
-        StepVerifier.create(accountService.getBalance())
+        StepVerifier.create(accountService.getBalance("alice"))
                 .expectNext(10L)
                 .verifyComplete();
     }

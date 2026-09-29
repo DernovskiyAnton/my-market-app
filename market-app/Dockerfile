@@ -6,6 +6,7 @@ COPY mvnw pom.xml ./
 COPY openapi/ openapi/
 COPY market-app/pom.xml market-app/
 COPY payment-service/pom.xml payment-service/
+COPY auth-server/pom.xml auth-server/
 RUN chmod +x mvnw && ./mvnw -B -q -pl market-app -am dependency:go-offline
 
 COPY market-app/src/ market-app/src/

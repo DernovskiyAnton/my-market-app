@@ -18,15 +18,16 @@ public class PaymentsApiDelegateImpl implements PaymentsApiDelegate {
     private final AccountService accountService;
 
     @Override
-    public Mono<ResponseEntity<Balance>> getBalance(ServerWebExchange exchange) {
-        return accountService.getBalance()
+    public Mono<ResponseEntity<Balance>> getBalance(String username, ServerWebExchange exchange) {
+        return accountService.getBalance(username)
                 .map(amount -> ResponseEntity.ok(new Balance(amount)));
     }
 
     @Override
-    public Mono<ResponseEntity<PaymentResult>> pay(Mono<PaymentRequest> paymentRequest, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<PaymentResult>> pay(String username, Mono<PaymentRequest> paymentRequest,
+                                                   ServerWebExchange exchange) {
         return paymentRequest
-                .flatMap(request -> accountService.withdraw(request.getAmount())
+                .flatMap(request -> accountService.withdraw(username, request.getAmount())
                         .map(balance -> ResponseEntity.ok(new PaymentResult(request.getAmount(), balance))));
     }
 }

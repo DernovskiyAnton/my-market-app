@@ -8,6 +8,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.oauth2.client.ClientAuthorizationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
@@ -24,11 +26,14 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
+
+    private static final String ACCOUNT = "alice";
 
     @Mock
     private PaymentsApi paymentsApi;
@@ -38,32 +43,32 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         paymentService = new PaymentService(paymentsApi,
-                new PaymentProperties("http://localhost", Duration.ofMillis(200)));
+                new PaymentProperties("http://localhost", Duration.ofMillis(200), "payment-service"));
     }
 
     @Test
     void getBalance_returnsAmount() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.just(new Balance(5000L)));
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.just(new Balance(5000L)));
 
-        StepVerifier.create(paymentService.getBalance())
+        StepVerifier.create(paymentService.getBalance(ACCOUNT))
                 .expectNext(5000L)
                 .verifyComplete();
     }
 
     @Test
     void checkAvailability_enoughFunds_allowsPurchase() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.just(new Balance(5000L)));
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.just(new Balance(5000L)));
 
-        StepVerifier.create(paymentService.checkAvailability(5000))
+        StepVerifier.create(paymentService.checkAvailability(ACCOUNT, 5000))
                 .expectNext(PaymentAvailability.enoughFunds(5000))
                 .verifyComplete();
     }
 
     @Test
     void checkAvailability_insufficientFunds_forbidsPurchaseWithMessage() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.just(new Balance(4999L)));
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.just(new Balance(4999L)));
 
-        StepVerifier.create(paymentService.checkAvailability(5000))
+        StepVerifier.create(paymentService.checkAvailability(ACCOUNT, 5000))
                 .assertNext(availability -> {
                     assertThat(availability.available()).isFalse();
                     assertThat(availability.balance()).isEqualTo(4999L);
@@ -74,33 +79,33 @@ class PaymentServiceTest {
 
     @Test
     void checkAvailability_serviceDown_forbidsPurchaseWithMessage() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.error(connectionRefused()));
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.error(connectionRefused()));
 
-        StepVerifier.create(paymentService.checkAvailability(100))
+        StepVerifier.create(paymentService.checkAvailability(ACCOUNT, 100))
                 .expectNext(PaymentAvailability.serviceUnavailable())
                 .verifyComplete();
     }
 
     @Test
     void getBalance_timeout_isReportedAsUnavailable() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.never());
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.never());
 
-        StepVerifier.create(paymentService.getBalance())
+        StepVerifier.create(paymentService.getBalance(ACCOUNT))
                 .expectError(PaymentUnavailableException.class)
                 .verify(Duration.ofSeconds(5));
     }
 
     @Test
     void pay_sendsAmountAndReturnsRemainingBalance() {
-        when(paymentsApi.pay(any())).thenReturn(Mono.just(new PaymentResult(300L, 700L)));
+        when(paymentsApi.pay(eq(ACCOUNT), any())).thenReturn(Mono.just(new PaymentResult(300L, 700L)));
 
-        StepVerifier.create(paymentService.pay(300))
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
                 .expectNext(700L)
                 .verifyComplete();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Mono<PaymentRequest>> captor = ArgumentCaptor.forClass(Mono.class);
-        verify(paymentsApi).pay(captor.capture());
+        verify(paymentsApi).pay(eq(ACCOUNT), captor.capture());
         StepVerifier.create(captor.getValue().map(PaymentRequest::getAmount))
                 .expectNext(300L)
                 .verifyComplete();
@@ -108,10 +113,10 @@ class PaymentServiceTest {
 
     @Test
     void pay_conflict_isReportedAsRejected() {
-        when(paymentsApi.pay(any())).thenReturn(Mono.error(WebClientResponseException.create(409, "Conflict",
+        when(paymentsApi.pay(eq(ACCOUNT), any())).thenReturn(Mono.error(WebClientResponseException.create(409, "Conflict",
                 HttpHeaders.EMPTY, "{}".getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8)));
 
-        StepVerifier.create(paymentService.pay(300))
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
                 .expectErrorSatisfies(error -> assertThat(error)
                         .isInstanceOf(PaymentRejectedException.class)
                         .hasMessageStartingWith("Оплата не прошла"))
@@ -120,11 +125,11 @@ class PaymentServiceTest {
 
     @Test
     void pay_badRequest_isReportedAsClientErrorNotAsUnavailable() {
-        when(paymentsApi.pay(any())).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
+        when(paymentsApi.pay(eq(ACCOUNT), any())).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
                 HttpHeaders.EMPTY, "{\"code\":\"INVALID_REQUEST\"}".getBytes(StandardCharsets.UTF_8),
                 StandardCharsets.UTF_8)));
 
-        StepVerifier.create(paymentService.pay(300))
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
                 .expectErrorSatisfies(error -> {
                     assertThat(error).isInstanceOf(PaymentClientErrorException.class)
                             .hasMessageStartingWith(PaymentClientErrorException.MESSAGE);
@@ -135,10 +140,10 @@ class PaymentServiceTest {
 
     @Test
     void getBalance_notFound_isReportedAsClientError() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.error(WebClientResponseException.create(404, "Not Found",
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.error(WebClientResponseException.create(404, "Not Found",
                 HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
 
-        StepVerifier.create(paymentService.getBalance())
+        StepVerifier.create(paymentService.getBalance(ACCOUNT))
                 .expectErrorSatisfies(error -> assertThat(error).isInstanceOf(PaymentClientErrorException.class)
                         .isNotInstanceOf(PaymentUnavailableException.class))
                 .verify();
@@ -146,27 +151,62 @@ class PaymentServiceTest {
 
     @Test
     void checkAvailability_clientError_forbidsPurchaseWithRequestRejectedMessage() {
-        when(paymentsApi.getBalance()).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.error(WebClientResponseException.create(400, "Bad Request",
                 HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
 
-        StepVerifier.create(paymentService.checkAvailability(100))
+        StepVerifier.create(paymentService.checkAvailability(ACCOUNT, 100))
                 .expectNext(PaymentAvailability.requestRejected())
                 .verifyComplete();
     }
 
     @Test
     void pay_serverErrorOrConnectionFailure_isReportedAsUnavailable() {
-        when(paymentsApi.pay(any())).thenReturn(Mono.error(WebClientResponseException.create(500, "Error",
+        when(paymentsApi.pay(eq(ACCOUNT), any())).thenReturn(Mono.error(WebClientResponseException.create(500, "Error",
                 HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
 
-        StepVerifier.create(paymentService.pay(300))
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
                 .expectError(PaymentUnavailableException.class)
                 .verify();
 
-        when(paymentsApi.pay(any())).thenReturn(Mono.error(connectionRefused()));
+        when(paymentsApi.pay(eq(ACCOUNT), any())).thenReturn(Mono.error(connectionRefused()));
 
-        StepVerifier.create(paymentService.pay(300))
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
                 .expectError(PaymentUnavailableException.class)
+                .verify();
+    }
+
+    @Test
+    void pay_clientNotAuthorizedOnAuthorizationServer_isReportedAsClientError() {
+        when(paymentsApi.pay(eq(ACCOUNT), any()))
+                .thenReturn(Mono.error(new ClientAuthorizationException(new OAuth2Error("invalid_client"), "payment-service")));
+
+        StepVerifier.create(paymentService.pay(ACCOUNT, 300))
+                .expectErrorSatisfies(error -> {
+                    assertThat(error).isInstanceOf(PaymentClientErrorException.class)
+                            .hasMessageContaining("не авторизована")
+                            .hasMessageContaining("invalid_client");
+                    assertThat(((PaymentClientErrorException) error).getStatus()).isEqualTo(401);
+                })
+                .verify();
+    }
+
+    @Test
+    void getBalance_authorizationServerFailure_isReportedAsUnavailable() {
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.error(new ClientAuthorizationException(
+                new OAuth2Error("invalid_token_response"), "payment-service", connectionRefused())));
+
+        StepVerifier.create(paymentService.getBalance(ACCOUNT))
+                .expectError(PaymentUnavailableException.class)
+                .verify();
+    }
+
+    @Test
+    void getBalance_paymentServiceRejectsToken_isReportedAsClientError() {
+        when(paymentsApi.getBalance(ACCOUNT)).thenReturn(Mono.error(WebClientResponseException.create(401,
+                "Unauthorized", HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8)));
+
+        StepVerifier.create(paymentService.getBalance(ACCOUNT))
+                .expectErrorSatisfies(error -> assertThat(error).isInstanceOf(PaymentClientErrorException.class))
                 .verify();
     }
 

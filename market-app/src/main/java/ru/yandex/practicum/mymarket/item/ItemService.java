@@ -22,7 +22,7 @@ public class ItemService {
     private final ItemCache itemCache;
     private final CartService cartService;
 
-    public Mono<Page<ItemDto>> findItems(String search, SortType sort, int pageNumber, int pageSize) {
+    public Mono<Page<ItemDto>> findItems(Long userId, String search, SortType sort, int pageNumber, int pageSize) {
         PageRequest pageable = PageRequest.of(pageNumber - 1, pageSize);
         return itemCache.getSummaries().flatMap(summaries -> {
             List<ItemSummary> found = summaries.stream()
@@ -34,16 +34,16 @@ public class ItemService {
                     .limit(pageSize)
                     .map(ItemSummary::id)
                     .toList();
-            return Mono.zip(itemCache.getCards(pageIds), cartService.getQuantities(pageIds))
+            return Mono.zip(itemCache.getCards(pageIds), cartService.getQuantities(userId, pageIds))
                     .map(result -> new PageImpl<>(toDtos(pageIds, result.getT1(), result.getT2()),
                             pageable, found.size()));
         });
     }
 
-    public Mono<ItemDto> getItem(long id) {
+    public Mono<ItemDto> getItem(Long userId, long id) {
         return itemCache.getCard(id)
                 .switchIfEmpty(Mono.error(() -> NotFoundException.item(id)))
-                .zipWith(cartService.getQuantity(id), ItemMapper::toDto);
+                .zipWith(cartService.getQuantity(userId, id), ItemMapper::toDto);
     }
 
     private static Predicate<ItemSummary> matches(String search) {

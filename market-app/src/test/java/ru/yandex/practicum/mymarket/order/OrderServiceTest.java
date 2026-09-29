@@ -23,6 +23,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
+    private static final long USER_ID = 1L;
+
     @Mock
     private OrderRepository orderRepository;
 
@@ -34,7 +36,7 @@ class OrderServiceTest {
 
     @Test
     void create_savesOrderAndItemsWithOrderId() {
-        Order order = new Order(LocalDateTime.now(), 200);
+        Order order = new Order(USER_ID, LocalDateTime.now(), 200);
         OrderItem orderItem = new OrderItem(item(1L, 100), 2);
         when(orderRepository.save(order)).thenAnswer(invocation -> {
             order.setId(10L);
@@ -56,19 +58,19 @@ class OrderServiceTest {
     void getOrder_returnsOrderWithItems() {
         Order order = order(5L, 300);
         OrderItem orderItem = new OrderItem(item(1L, 100), 3);
-        when(orderRepository.findById(5L)).thenReturn(Mono.just(order));
+        when(orderRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Mono.just(order));
         when(orderItemRepository.findAllByOrderIdOrderByIdAsc(5L)).thenReturn(Flux.just(orderItem));
 
-        StepVerifier.create(orderService.getOrder(5L))
+        StepVerifier.create(orderService.getOrder(USER_ID, 5L))
                 .expectNext(new OrderDto(5L, List.of(new OrderItemDto(1L, "Товар 1", 100, 3)), 300))
                 .verifyComplete();
     }
 
     @Test
     void getOrder_unknownId_returnsNotFound() {
-        when(orderRepository.findById(5L)).thenReturn(Mono.empty());
+        when(orderRepository.findByIdAndUserId(5L, USER_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(orderService.getOrder(5L))
+        StepVerifier.create(orderService.getOrder(USER_ID, 5L))
                 .expectError(NotFoundException.class)
                 .verify();
     }
@@ -79,10 +81,10 @@ class OrderServiceTest {
         first.setOrderId(1L);
         OrderItem second = new OrderItem(item(2L, 50), 2);
         second.setOrderId(2L);
-        when(orderRepository.findAllByOrderByIdDesc()).thenReturn(Flux.just(order(2L, 100), order(1L, 100)));
+        when(orderRepository.findAllByUserIdOrderByIdDesc(USER_ID)).thenReturn(Flux.just(order(2L, 100), order(1L, 100)));
         when(orderItemRepository.findAllByOrderIdInOrderByIdAsc(List.of(2L, 1L))).thenReturn(Flux.just(first, second));
 
-        StepVerifier.create(orderService.findAll())
+        StepVerifier.create(orderService.findAll(USER_ID))
                 .expectNext(new OrderDto(2L, List.of(new OrderItemDto(2L, "Товар 2", 50, 2)), 100))
                 .expectNext(new OrderDto(1L, List.of(new OrderItemDto(1L, "Товар 1", 100, 1)), 100))
                 .verifyComplete();
@@ -90,14 +92,14 @@ class OrderServiceTest {
 
     @Test
     void findAll_noOrders_doesNotQueryItems() {
-        when(orderRepository.findAllByOrderByIdDesc()).thenReturn(Flux.empty());
+        when(orderRepository.findAllByUserIdOrderByIdDesc(USER_ID)).thenReturn(Flux.empty());
 
-        StepVerifier.create(orderService.findAll()).verifyComplete();
+        StepVerifier.create(orderService.findAll(USER_ID)).verifyComplete();
         verifyNoInteractions(orderItemRepository);
     }
 
     private static Order order(long id, long totalSum) {
-        Order order = new Order(LocalDateTime.now(), totalSum);
+        Order order = new Order(USER_ID, LocalDateTime.now(), totalSum);
         order.setId(id);
         return order;
     }

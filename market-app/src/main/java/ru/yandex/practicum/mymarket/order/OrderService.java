@@ -17,14 +17,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
 
-    public Flux<OrderDto> findAll() {
-        return orderRepository.findAllByOrderByIdDesc()
+    public Flux<OrderDto> findAll(long userId) {
+        return orderRepository.findAllByUserIdOrderByIdDesc(userId)
                 .collectList()
                 .flatMapMany(this::withItems);
     }
 
-    public Mono<OrderDto> getOrder(long id) {
-        return orderRepository.findById(id)
+    public Mono<OrderDto> getOrder(long userId, long id) {
+        return orderRepository.findByIdAndUserId(id, userId)
                 .switchIfEmpty(Mono.error(() -> NotFoundException.order(id)))
                 .flatMap(order -> orderItemRepository.findAllByOrderIdOrderByIdAsc(id)
                         .collectList()

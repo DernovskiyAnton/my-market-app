@@ -11,3 +11,8 @@ INSERT INTO items (title, description, img_path, price) VALUES
 ('Рюкзак', 'Городской рюкзак на 25 литров', 'images/backpack.svg', 3300),
 ('Секундомер', 'Электронный секундомер с памятью кругов', 'images/stopwatch.svg', 900),
 ('Эспандер', 'Кистевой эспандер с регулируемой нагрузкой', 'images/grip.svg', 350);
+
+INSERT INTO users (username, password, role) VALUES
+('alice', '$2a$10$82o6B3N4UZzlVAhyYimIOuz9uzZhQ3IaNVhB80leJjEYAX27c5qle', 'USER'),
+('bob', '$2a$10$EfIb5A4odlMMAgDaEW0JPuo40eJjdDgf9lHbZKYGdrBWsuRg7X4fK', 'USER'),
+('admin', '$2a$10$Bm/oxwoQe6/tSN36a1eAIeM8vqytU.ybEQHiBIb77YtYAlOa3FO.i', 'ADMIN');
