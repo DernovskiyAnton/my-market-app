@@ -34,24 +34,24 @@ class MarketFlowIntegrationTest extends IntegrationTestBase {
         long ballId = createItem("Тестовый мяч", 1000).getId();
         long ropeId = createItem("Тестовая скакалка", 300).getId();
 
-        webTestClient.post().uri("/items")
+        asAlice().post().uri("/items")
                 .body(BodyInserters.fromFormData("id", String.valueOf(ballId)).with("action", "PLUS"))
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().location("/items?search=&sort=NO&pageNumber=1&pageSize=5");
-        webTestClient.post().uri("/items/" + ballId)
+        asAlice().post().uri("/items/" + ballId)
                 .body(BodyInserters.fromFormData("action", "PLUS"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).contains("<span>2</span>"));
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("id", String.valueOf(ropeId)).with("action", "PLUS"))
                 .exchange()
                 .expectStatus().isOk();
 
         assertThat(getHtml("/cart/items")).contains("Тестовый мяч", "Тестовая скакалка", "Итого: 2300 руб.");
 
-        URI orderUri = webTestClient.post().uri("/buy").exchange()
+        URI orderUri = asAlice().post().uri("/buy").exchange()
                 .expectStatus().is3xxRedirection()
                 .expectBody().returnResult().getResponseHeaders().getLocation();
         assertThat(orderUri.toString()).matches("/orders/\\d+\\?newOrder=true");
@@ -63,17 +63,17 @@ class MarketFlowIntegrationTest extends IntegrationTestBase {
 
     @Test
     void buy_withEmptyCart_returnsBadRequest() {
-        webTestClient.post().uri("/buy").exchange().expectStatus().isBadRequest();
+        asAlice().post().uri("/buy").exchange().expectStatus().isBadRequest();
     }
 
     @Test
     void unknownItemAndOrder_returnNotFound() {
         webTestClient.get().uri("/items/100500").exchange().expectStatus().isNotFound();
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("id", "100500").with("action", "PLUS"))
                 .exchange()
                 .expectStatus().isNotFound();
-        webTestClient.get().uri("/orders/100500").exchange().expectStatus().isNotFound();
+        asAlice().get().uri("/orders/100500").exchange().expectStatus().isNotFound();
     }
 
     @Test
@@ -84,7 +84,7 @@ class MarketFlowIntegrationTest extends IntegrationTestBase {
     }
 
     private String getHtml(String uri) {
-        return webTestClient.get().uri(uri).exchange()
+        return asAlice().get().uri(uri).exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).returnResult().getResponseBody();
     }

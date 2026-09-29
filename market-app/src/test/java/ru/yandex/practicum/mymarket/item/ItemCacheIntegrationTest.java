@@ -108,12 +108,13 @@ class ItemCacheIntegrationTest extends IntegrationTestBase {
     @Test
     void cartPage_readsItemsFromCache() {
         long id = createItem("Товар в корзине", 300).getId();
-        webTestClient.post().uri("/cart/items?id=" + id + "&action=PLUS").exchange().expectStatus().isOk();
+        asAlice().post().uri("/cart/items?id=" + id + "&action=PLUS").exchange().expectStatus().isOk();
 
         assertThat(itemCardRedisTemplate.hasKey(ItemCache.cardKey(id)).block()).isTrue();
         updateItemInDatabase(id, "Переименованный товар", 300);
 
-        assertThat(getHtml("/cart/items")).contains("Товар в корзине").doesNotContain("Переименованный товар");
+        assertThat(asAlice().get().uri("/cart/items").exchange().expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody()).contains("Товар в корзине").doesNotContain("Переименованный товар");
     }
 
     @Test
@@ -121,7 +122,7 @@ class ItemCacheIntegrationTest extends IntegrationTestBase {
         StepVerifier.create(itemCache.getCard(-42L)).verifyComplete();
 
         assertThat(itemCardRedisTemplate.hasKey(ItemCache.cardKey(-42L)).block()).isFalse();
-        StepVerifier.create(itemService.getItem(-42L)).expectError().verify();
+        StepVerifier.create(itemService.getItem(null, -42L)).expectError().verify();
     }
 
     private long createItemWithoutEviction(String title, long price) {
