@@ -1,8 +1,8 @@
-target/
-uploaded-images/
+**/target/
+**/uploaded-images/
 .git/
 .idea/
 *.iml
-Dockerfile
+**/Dockerfile
 .dockerignore
 README.md
