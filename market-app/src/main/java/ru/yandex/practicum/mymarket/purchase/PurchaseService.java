@@ -28,13 +28,13 @@ public class PurchaseService {
     private final TransactionalOperator transactionalOperator;
     private final Clock clock;
 
-    public Mono<Long> buy() {
-        return cartService.getCartLines()
+    public Mono<Long> buy(long userId, String account) {
+        return cartService.getCartLines(userId)
                 .collectList()
-                .flatMap(this::payAndPlaceOrder);
+                .flatMap(lines -> payAndPlaceOrder(userId, account, lines));
     }
 
-    private Mono<Long> payAndPlaceOrder(List<CartLine> lines) {
+    private Mono<Long> payAndPlaceOrder(long userId, String account, List<CartLine> lines) {
         if (lines.isEmpty()) {
             return Mono.error(new EmptyCartException());
         }
@@ -42,13 +42,14 @@ public class PurchaseService {
                 .map(line -> new OrderItem(line.item(), line.quantity()))
                 .toList();
         long totalSum = items.stream().mapToLong(OrderItem::getSum).sum();
-        return paymentService.pay(totalSum)
-                .then(Mono.defer(() -> saveOrderAndClearCart(new Order(LocalDateTime.now(clock), totalSum), items)));
+        return paymentService.pay(account, totalSum)
+                .then(Mono.defer(() -> saveOrderAndClearCart(
+                        new Order(userId, LocalDateTime.now(clock), totalSum), items)));
     }
 
     private Mono<Long> saveOrderAndClearCart(Order order, List<OrderItem> items) {
         return orderService.create(order, items)
-                .flatMap(orderId -> cartService.clear().thenReturn(orderId))
+                .flatMap(orderId -> cartService.clear(order.getUserId()).thenReturn(orderId))
                 .as(transactionalOperator::transactional)
                 .doOnError(error -> log.error("Order for {} руб. was paid but could not be saved", order.getTotalSum(),
                         error));
