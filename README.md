@@ -1,15 +1,20 @@
-# Витрина интернет-магазина и сервис платежей (my-market)
+# Витрина интернет-магазина, сервис платежей и сервер авторизации (my-market)
 
-Мультипроект Maven из двух приложений на Spring Boot и реактивном стеке:
+Мультипроект Maven из трёх приложений на Spring Boot:
 
-- **market-app** — веб-приложение «Витрина интернет-магазина» (Spring WebFlux + Thymeleaf,
-  Spring Data R2DBC). Пользователь просматривает каталог, кладёт товары в корзину, оплачивает заказ
-  через сервис платежей и смотрит историю заказов. Товары кешируются в Redis.
-- **payment-service** — RESTful-сервис платежей на Spring WebFlux: отдаёт баланс счёта и списывает
-  с него сумму заказа. Обмен данными — JSON.
+- **market-app** — веб-приложение «Витрина интернет-магазина» (Spring WebFlux + Thymeleaf, Spring Data R2DBC,
+  Spring Security). Покупатели входят по логину и паролю. У каждого из них своя корзина, свои заказы
+  и свой счёт в сервисе платежей. Анонимный пользователь видит только витрину и карточки товаров.
+  Товары кешируются в Redis.
+- **payment-service** — RESTful-сервис платежей на Spring WebFlux, OAuth2 resource server: отдаёт баланс
+  счёта пользователя и списывает с него сумму заказа. Принимает запросы только с токеном доступа сервера
+  авторизации.
+- **auth-server** — сервер авторизации OAuth2 на Spring Authorization Server. Выдаёт витрине токены
+  по Client Credentials Flow.
 
-Интеграция описана OpenAPI-спецификацией [`openapi/payment-api.yaml`](openapi/payment-api.yaml).
-По ней при сборке генерируются HTTP-клиент для витрины и REST-контроллер для сервиса платежей.
+Интеграция витрины и сервиса платежей описана OpenAPI-спецификацией
+[`openapi/payment-api.yaml`](openapi/payment-api.yaml). По ней при сборке генерируются HTTP-клиент для витрины
+и REST-контроллер для сервиса платежей.
 
 ## Стек
 
@@ -17,11 +22,12 @@
 |---|---|
 | Язык | Java 21 |
 | Фреймворк | Spring Boot 3.5 |
-| Веб-слой | Spring WebFlux, встроенный Netty; Thymeleaf в витрине |
+| Веб-слой | Spring WebFlux, встроенный Netty; Thymeleaf в витрине. Сервер авторизации — Spring MVC и Tomcat: Spring Authorization Server работает только на сервлетном стеке |
+| Безопасность | Spring Security: вход по форме, BCrypt, CSRF (витрина); OAuth2 Client Credentials (витрина → сервис платежей); OAuth2 Resource Server с JWT (сервис платежей); Spring Authorization Server |
 | Доступ к данным | Spring Data R2DBC, H2 в памяти (`r2dbc-h2`) |
-| Кеш товаров | Redis, Spring Data Redis Reactive (`ReactiveRedisTemplate`, Lettuce) |
-| Интеграция | OpenAPI 3, OpenAPI Generator 7 (генератор `spring`): клиент `spring-http-interface` поверх `WebClient`, сервер — реактивный контроллер с делегатом |
-| Тесты | JUnit 5, Mockito, Reactor Test, Spring Boot Test (`@SpringBootTest`, `@WebFluxTest`, `@DataR2dbcTest`), `WebTestClient`, Testcontainers (Redis), MockWebServer |
+| Кеш товаров | Redis, Spring Data Redis Reactive |
+| Интеграция | OpenAPI 3, OpenAPI Generator 7: клиент `spring-http-interface` поверх `WebClient`, сервер — реактивный контроллер с делегатом |
+| Тесты | JUnit 5, Mockito, Reactor Test, Spring Boot Test (`@SpringBootTest`, `@WebFluxTest`, `@DataR2dbcTest`), Spring Security Test, `WebTestClient`, MockMvc, Testcontainers (Redis), MockWebServer, Nimbus JOSE (подпись тестовых JWT) |
 | Сборка | Maven (Maven Wrapper), мультимодульный проект, Executable JAR |
 | Развёртывание | Docker, Docker Compose |
 
@@ -30,190 +36,220 @@
 ```
 .
 ├── pom.xml                      корневой pom: модули, версии плагинов, общая конфигурация
-├── openapi/payment-api.yaml     OpenAPI-спецификация сервиса платежей
-├── docker-compose.yml           Redis + payment-service + market-app
+├── openapi/payment-api.yaml     OpenAPI-спецификация сервиса платежей (с OAuth2-схемой безопасности)
+├── docker-compose.yml           Redis + auth-server + payment-service + market-app
 ├── market-app/                  витрина интернет-магазина (порт 8080)
-│   ├── pom.xml                  генерация клиента по спецификации
-│   ├── Dockerfile
-│   └── src/
-└── payment-service/             сервис платежей (порт 8081)
-    ├── pom.xml                  генерация серверного кода по спецификации
-    ├── Dockerfile
-    └── src/
+├── payment-service/             сервис платежей (порт 8081)
+└── auth-server/                 сервер авторизации OAuth2 (порт 9000)
 ```
 
-Сгенерированный код не хранится в репозитории: он появляется в `target/generated-sources/openapi`
-на фазе `generate-sources` каждого модуля.
+## Авторизация
+
+```
+  браузер ──логин/пароль──▶ market-app ──client_credentials (market-app / секрет)──▶ auth-server
+                               │                                     ◀── JWT: aud=payment-service, scope=payments
+                               └──Authorization: Bearer <JWT>──▶ payment-service ──JWKS──▶ auth-server
+```
+
+### Пользователи витрины
+
+Пользователи хранятся в таблице `users`: логин, BCrypt-хеш пароля и роль. Они заранее загружены
+скриптом `data.sql`:
+
+| Логин | Пароль | Роль | Счёт в сервисе платежей |
+|---|---|---|---|
+| `alice` | `alice123` | `USER` | 50 000 руб. |
+| `bob` | `bob123` | `USER` | 1 000 руб. (чтобы проверить нехватку средств) |
+| `admin` | `admin123` | `ADMIN` | 50 000 руб. |
+
+Права доступа (`SecurityConfig`):
+
+| Ресурс | Анонимный | `USER` | `ADMIN` |
+|---|---|---|---|
+| `GET /`, `/items`, `/items/{id}`, `/images/**`, `/login` | да | да | да |
+| корзина, изменение количества, `POST /buy`, заказы | нет, перенаправление на `/login?required` | да | да |
+| загрузка товаров `/admin/**` | нет, перенаправление на `/login?required` | нет, страница `403` | да |
+
+- **На уровне HTML** анонимный пользователь не видит кнопок корзины и ссылок на корзину и заказы, вместо них
+  выводится «Войдите, чтобы купить» и кнопка «Войти». Ссылку на загрузку товаров видит только администратор.
+  Шапка страниц вынесена во фрагмент `fragments/header.html`.
+- **На уровне эндпоинтов** Spring Security проверяет права до вызова контроллера. Анонимный пользователь
+  перенаправляется на страницу входа с пояснением, пользователь без роли `ADMIN` получает страницу
+  «Недостаточно прав» со статусом `403`.
+- **Изоляция данных.** Контроллеры получают текущего пользователя через `@AuthenticationPrincipal MarketUser`,
+  сервисы работают с корзиной и заказами только по его `id`. Чужой заказ не отличить от несуществующего:
+  ответ `404`. Покупка идёт только из своей корзины со своего счёта (`/api/accounts/{логин}/…`).
+- **Вход** — собственная страница `/login`, пароли проверяются через `BCryptPasswordEncoder`.
+- **Выход** (`POST /logout`) удаляет контекст безопасности и сессию (`WebSession`), удаляет все куки
+  запроса, включая `SESSION`, и отправляет заголовок `Clear-Site-Data` (браузеры принимают его только
+  по HTTPS). После выхода старая сессия недействительна.
+- **CSRF** включён для всех изменяющих запросов. Токен подставляется в формы Thymeleaf автоматически
+  (`th:action`), а для формы загрузки файлов принимается из multipart-данных (`MultipartAwareCsrfTokenRequestHandler`).
+- **Контекст безопасности для шаблонов.** В WebFlux диалект Spring Security для Thymeleaf поддерживает только
+  выражения вида `isAuthenticated()` и `isAnonymous()`. Контекст безопасности и признак администратора
+  передаются в шаблоны через `SecurityModelAdvice`.
+
+### Сервер авторизации (auth-server)
+
+Spring Authorization Server настраивается свойствами Spring Boot (`spring.security.oauth2.authorizationserver.*`):
+
+- **Издатель токенов:** `http://localhost:9000`, в Docker Compose — `http://auth-server:9000`.
+- **Клиент `market-app`:** секрет хранится BCrypt-хешем, аутентификация `client_secret_basic`, grant type
+  `client_credentials`, scope `payments`, время жизни токена 5 минут.
+- **Сервис платежей как ресурс.** Он описан свойством `auth.resource-servers.payment-service=payments`.
+  `ResourceAudienceTokenCustomizer` добавляет в токен аудиторию `payment-service`, если клиенту выдан
+  scope `payments`.
+- **Эндпоинты:** `POST /oauth2/token`, `GET /oauth2/jwks`, `GET /.well-known/oauth-authorization-server`.
+
+Получить токен вручную:
+
+```bash
+curl -s -u market-app:market-app-secret -d grant_type=client_credentials -d scope=payments localhost:9000/oauth2/token
+```
+
+### Витрина как OAuth2-клиент
+
+Регистрация клиента `payment-service` — это стандартные свойства `spring.security.oauth2.client.*`. Адрес
+сервера авторизации и учётные данные клиента задаются через `market.auth.base-url`, `market.auth.client-id`
+и `market.auth.client-secret`.
+
+`PaymentClientConfig` добавляет в `WebClient` сгенерированного клиента фильтр `ClientCredentialsExchangeFilter`.
+Фильтр работает так:
+
+- получает токен через `ReactiveOAuth2AuthorizedClientManager` (Client Credentials) от имени самого приложения,
+  а не пользователя;
+- кеширует токен до истечения срока и добавляет его в заголовок `Authorization: Bearer …`;
+- если сервис платежей отвечает `401`, забывает токен, и следующий запрос получает новый.
+
+`PaymentService` разбирает ошибки:
+
+| Ситуация | Что видит пользователь | Статус |
+|---|---|---|
+| сервер авторизации отказал клиенту (`invalid_client`, `invalid_scope` и т.п.), сервис платежей ответил `401`/`403`/`400`/`404` | «Сервис платежей отклонил запрос…», для отказа в токене — «витрина не авторизована…» | `502` |
+| `409` от сервиса платежей | «Оплата не прошла: недостаточно средств…» | `409` |
+| сервис платежей или сервер авторизации не отвечает, `5xx`, таймаут | «Сервис платежей недоступен…» | `503` |
+
+На странице корзины в этих случаях вместо кнопки «Купить» показывается сообщение.
+
+### Сервис платежей как resource server
+
+- **Проверка токена.** `SecurityConfig` включает `oauth2ResourceServer().jwt()`. Подпись JWT проверяется
+  по JWKS сервера авторизации (`jwk-set-uri`), также проверяются издатель (`issuer-uri`), аудитория
+  `payment-service` и срок действия.
+- **Доступ к `/api/**`** только с правом `SCOPE_payments`. Без токена или с невалидным токеном — `401`,
+  с токеном без scope `payments` — `403`.
+- **`/actuator/health`** открыт и используется в healthcheck Docker Compose.
 
 ## Сервис платежей (payment-service)
 
-### API
-
 | Метод | Путь | Тело запроса | Ответ |
 |---|---|---|---|
-| GET | `/api/balance` | — | `200 {"amount": 50000}` |
-| POST | `/api/payments` | `{"amount": 5600}` | `200 {"amount": 5600, "balance": 44400}` |
-| | | | `409 {"code": "INSUFFICIENT_FUNDS", "message": "..."}` — недостаточно средств, платёж не проведён |
-| | | | `400 {"code": "INVALID_REQUEST", "message": "..."}` — сумма не указана или не положительна |
+| GET | `/api/accounts/{username}/balance` | — | `200 {"amount": 50000}` |
+| POST | `/api/accounts/{username}/payments` | `{"amount": 5600}` | `200 {"amount": 5600, "balance": 44400}` |
+| | | | `409 INSUFFICIENT_FUNDS` — недостаточно средств, платёж не проведён |
+| | | | `400 INVALID_REQUEST` — некорректные сумма или логин |
+| | | | `401` — нет токена или он недействителен, `403` — нет scope `payments` |
 
-Пример:
-
-```bash
-curl -s localhost:8081/api/balance
-```
-
-```bash
-curl -s -H 'Content-Type: application/json' -d '{"amount":5600}' localhost:8081/api/payments
-```
-
-### Устройство
-
-```
-payment-service/src/main/java/ru/yandex/practicum/payment
-├── PaymentServiceApplication.java
-├── account/   AccountService — баланс счёта и атомарное списание,
-│              AccountProperties, InsufficientFundsException
-└── web/       PaymentsApiDelegateImpl — реализация сгенерированного делегата,
-               ApiExceptionHandler — ошибки в формате ErrorResponse
-```
-
-Из спецификации генерируются `PaymentsApi` (интерфейс с аннотациями маршрутов и валидацией),
-`PaymentsApiController` (REST-контроллер) и `PaymentsApiDelegate`, а также модели `Balance`,
-`PaymentRequest`, `PaymentResult`, `ErrorResponse`. Логика подключается реализацией делегата.
-
-Баланс хранится в памяти и задаётся свойством `payment.account.initial-balance` (по умолчанию 50 000 руб.).
-Списание выполняется атомарно (`AtomicLong.compareAndSet`), поэтому параллельные платежи не уводят
-баланс в минус. После перезапуска сервиса баланс восстанавливается.
+- **Счета** хранятся в памяти, у каждого пользователя свой. Начальный баланс задаётся свойством
+  `payment.account.initial-balance` (50 000), для отдельных пользователей —
+  `payment.account.balances.<логин>` (у `bob` 1 000).
+- **Списание атомарное** (`AtomicLong.compareAndSet`).
+- **Сгенерированный код.** `PaymentsApiController`, `PaymentsApi`, `PaymentsApiDelegate` и модели генерируются
+  по спецификации, логика подключается реализацией делегата `PaymentsApiDelegateImpl`.
 
 ## Витрина (market-app)
 
 ### Возможности
 
-- **Витрина** (`/`, `/items`): плитка товаров по три в ряд, поиск по вхождению строки в название или описание,
-  сортировка по алфавиту и по цене, пагинация по 2, 5, 10, 20, 50 и 100 товаров, изменение количества в корзине.
+- **Витрина** (`/`, `/items`): поиск по названию и описанию, сортировка по алфавиту и цене, пагинация
+  по 2, 5, 10, 20, 50 и 100 товаров. Изменение количества в корзине доступно только после входа.
 - **Карточка товара** (`/items/{id}`).
-- **Корзина** (`/cart/items`): товары, количество, цены и общая сумма. Показывает баланс из сервиса платежей.
-  Кнопка «Купить» доступна, только если баланса хватает на заказ. Если средств недостаточно или сервис
-  платежей недоступен, вместо кнопки выводится сообщение.
-- **Покупка** (`POST /buy`): сначала выполняется платёж запросом в сервис платежей, и только после
-  успешной оплаты в короткой транзакции БД записывается заказ и очищается корзина. Сетевой вызов
-  не держит транзакцию открытой. Если платёж отклонён (`409`) или сервис недоступен, заказ не создаётся,
-  корзина остаётся, выводится страница ошибки (`409` или `503`).
-- **Заказы** (`/orders`, `/orders/{id}`).
-- **Загрузка товаров** (`/admin/items`): импорт из CSV вместе с изображениями.
+- **Корзина** (`/cart/items`) текущего пользователя: баланс его счёта, кнопка «Купить», если средств хватает,
+  иначе сообщение.
+- **Покупка** (`POST /buy`): сначала платёж со счёта пользователя, затем в короткой транзакции БД
+  записывается заказ и очищается корзина.
+- **Заказы** (`/orders`, `/orders/{id}`) текущего пользователя.
+- **Загрузка товаров** (`/admin/items`) из CSV вместе с изображениями, только для администратора.
 
 ### Эндпоинты
 
-| Метод | Путь | Описание | Результат |
+| Метод | Путь | Доступ | Результат |
 |---|---|---|---|
-| GET | `/`, `/items?search=&sort=NO\|ALPHA\|PRICE&pageNumber=1&pageSize=5` | Витрина | шаблон `items` |
-| POST | `/items?id=&action=PLUS\|MINUS&search=&sort=&pageNumber=&pageSize=` | Изменить количество с витрины | `redirect:/items?...` |
-| GET | `/items/{id}` | Карточка товара | шаблон `item` |
-| POST | `/items/{id}?action=PLUS\|MINUS` | Изменить количество с карточки | шаблон `item` |
-| GET | `/cart/items` | Корзина с проверкой баланса | шаблон `cart` |
-| POST | `/cart/items?id=&action=PLUS\|MINUS\|DELETE` | Изменить количество / удалить из корзины | шаблон `cart` |
-| POST | `/buy` | Оплатить и оформить заказ | `redirect:/orders/{id}?newOrder=true` |
-| GET | `/orders` | Список заказов | шаблон `orders` |
-| GET | `/orders/{id}?newOrder=false` | Страница заказа | шаблон `order` |
-| GET | `/admin/items?imported=N` | Форма загрузки товаров | шаблон `import` |
-| POST | `/admin/items/import` | Импорт CSV (`file`) и изображений (`images`) | `redirect:/admin/items?imported=N` |
-| GET | `/images/{fileName}` | Изображение товара | файл изображения |
-
-POST-эндпоинты принимают параметры как из строки запроса, так и из тела формы. Редиректы после POST
-отдаются со статусом `303 See Other`.
+| GET | `/`, `/items?search=&sort=NO\|ALPHA\|PRICE&pageNumber=1&pageSize=5` | все | шаблон `items` |
+| POST | `/items?id=&action=PLUS\|MINUS&…` | пользователь | `redirect:/items?...` |
+| GET | `/items/{id}` | все | шаблон `item` |
+| POST | `/items/{id}?action=PLUS\|MINUS` | пользователь | шаблон `item` |
+| GET | `/cart/items` | пользователь | шаблон `cart` |
+| POST | `/cart/items?id=&action=PLUS\|MINUS\|DELETE` | пользователь | шаблон `cart` |
+| POST | `/buy` | пользователь | `redirect:/orders/{id}?newOrder=true` |
+| GET | `/orders`, `/orders/{id}` | пользователь | шаблоны `orders`, `order` |
+| GET | `/login` | все | шаблон `login` |
+| POST | `/login`, `/logout` | все / пользователь | обработка Spring Security |
+| GET | `/access-denied` | все | шаблон `error`, статус `403` |
+| GET | `/admin/items?imported=N` | администратор | шаблон `import` |
+| POST | `/admin/items/import` | администратор | `redirect:/admin/items?imported=N` |
+| GET | `/images/{fileName}` | все | файл изображения |
 
 ### Структура
 
 ```
 market-app/src/main/java/ru/yandex/practicum/mymarket
-├── item/        товары: Item, ItemRepository, ItemService, ItemController, ItemDto, ItemMapper,
-│                ItemGrid, Paging, SortType, CatalogCartForm, ItemCartForm;
-│                кеш: ItemCache, ItemCacheConfig, ItemCacheProperties, ItemSummary, ItemCard
-├── cart/        корзина: CartItem, CartItemRepository, CartService, CartController, CartDto, CartLine,
-│                CartAction, CartItemForm
-├── order/       заказы: Order, OrderItem, OrderRepository, OrderItemRepository, OrderService,
-│                OrderController, OrderDto, OrderItemDto, OrderMapper
-├── purchase/    покупка: PurchaseService (оплата, затем заказ и очистка корзины), PurchaseController
-├── payment/     интеграция с сервисом платежей: PaymentClientConfig, PaymentService,
-│                PaymentProperties, PaymentAvailability, PaymentRejectedException,
-│                PaymentClientErrorException, PaymentUnavailableException
-├── image/       изображения товаров: ImageService, ImageController
-├── itemimport/  загрузка товаров из CSV: ItemImportService, ItemImportController, ItemImportException
+├── user/        пользователи: User, Role, UserRepository, MarketUser (UserDetails с id),
+│                MarketUserDetailsService (ReactiveUserDetailsService)
+├── security/    SecurityConfig, LoginController, SecurityModelAdvice,
+│                MultipartAwareCsrfTokenRequestHandler, CookieClearingServerLogoutHandler
+├── item/        товары и кеш в Redis: Item, ItemRepository, ItemService, ItemController, ItemCache, …
+├── cart/        корзина пользователя: CartItem, CartItemRepository, CartService, CartController, …
+├── order/       заказы пользователя: Order, OrderItem, OrderRepository, OrderItemRepository, OrderService, …
+├── purchase/    покупка: PurchaseService, PurchaseController
+├── payment/     клиент сервиса платежей: PaymentClientConfig, ClientCredentialsExchangeFilter,
+│                PaymentService, PaymentProperties, PaymentAvailability, исключения
+├── image/       изображения товаров
+├── itemimport/  загрузка товаров из CSV
 └── common/      NotFoundException, EmptyCartException, GlobalExceptionHandler, ClockConfig
 ```
 
-### Интеграция с сервисом платежей
-
-Из спецификации генерируется декларативный HTTP-интерфейс `PaymentsApi` (`@HttpExchange`, методы
-возвращают `Mono`) и модели в пакете `ru.yandex.practicum.mymarket.payment.client`.
-`PaymentClientConfig` создаёт его реализацию через `HttpServiceProxyFactory` поверх `WebClient`.
-
-`PaymentService` оборачивает клиент:
-
-- ограничивает время ответа таймаутом `market.payment.timeout` (по умолчанию 3 с);
-- переводит ответ `409` (недостаточно средств) в `PaymentRejectedException` с сообщением от сервиса платежей,
-  страница ошибки отдаётся со статусом `409`;
-- переводит остальные ответы `4xx` (например, `400 INVALID_REQUEST`) в `PaymentClientErrorException`:
-  сервис жив, но отверг запрос витрины. Такая ошибка логируется как `ERROR` с методом, адресом, статусом
-  и телом ответа, пользователь видит сообщение «Сервис платежей отклонил запрос», страница — со статусом
-  `502 Bad Gateway`;
-- переводит отказ соединения, таймаут и ответы `5xx` в `PaymentUnavailableException` («сервис платежей
-  недоступен», статус `503`), причина логируется как `WARN`;
-- для страницы корзины возвращает `PaymentAvailability`: можно ли оплатить заказ, баланс и сообщение.
-
-Адрес сервиса задаётся свойством `market.payment.base-url` (по умолчанию `http://localhost:8081`).
-
 ### Кеш товаров в Redis
-
-`ItemCache` хранит в Redis два вида данных с временем жизни `market.cache.items-ttl` (по умолчанию 2 минуты):
 
 | Ключ | Значение | Используется |
 |---|---|---|
 | `items:list` | JSON-список всех товаров: `id`, `title`, `description`, `price` | поиск, сортировка и пагинация витрины |
 | `items:card:{id}` | JSON карточки: `id`, `title`, `description`, `imgPath`, `price` | карточка товара, плитки витрины, корзина, покупка |
 
-- Если данных в кеше нет, они загружаются из БД и записываются в Redis. Для плиток витрины и корзины карточки
-  читаются одним `MGET`, из БД догружаются только отсутствующие.
-- Витрина фильтрует, сортирует и режет на страницы список из `items:list`, а затем получает карточки
-  товаров текущей страницы.
-- После импорта товаров ключ `items:list` удаляется, чтобы новые товары сразу появились на витрине.
-- Если Redis недоступен, ошибка записывается в лог, а данные читаются напрямую из БД.
+- Время жизни — `market.cache.items-ttl`, по умолчанию 2 минуты.
+- При промахе данные загружаются из БД и кладутся в Redis.
+- После импорта товаров `items:list` сбрасывается.
+- Если Redis недоступен, данные читаются из БД.
 
 ### Схема базы данных
 
 ```
-items                     cart_items                 orders                 order_items
-─────────────────         ─────────────────          ─────────────          ─────────────────────
-id          PK            id        PK               id          PK         id        PK
-title                     item_id   FK→items, UNIQUE created_at             order_id  FK→orders
-description               quantity  (> 0)            total_sum              item_id   FK→items
-img_path                                                                    title
-price       (>= 0)                                                          price
-                                                                            quantity  (> 0)
+users                   items                  cart_items                   orders               order_items
+──────────────────      ─────────────────      ─────────────────────        ───────────────      ────────────────────
+id        PK            id          PK         id       PK                  id         PK        id        PK
+username  UNIQUE        title                  user_id  FK→users            user_id    FK→users  order_id  FK→orders
+password  (BCrypt)      description            item_id  FK→items            created_at           item_id   FK→items
+role      USER|ADMIN    img_path               quantity (> 0)               total_sum            title
+                        price       (>= 0)     UNIQUE (user_id, item_id)                         price
+                                                                                                 quantity  (> 0)
 ```
 
-- Корзина одна на приложение (пользователей нет).
-- В `order_items` название и цена копируются на момент покупки, поэтому изменения каталога
-  не меняют историю заказов.
-- Схема и начальный каталог накатываются скриптами `schema.sql` и `data.sql` при старте.
-- База в памяти (`r2dbc:h2:mem:///market`): после перезапуска корзина и заказы сбрасываются.
+- Корзина и заказы привязаны к пользователю через `user_id`.
+- В `order_items` название и цена копируются на момент покупки.
+- Схема, начальный каталог и пользователи накатываются скриптами `schema.sql` и `data.sql` при старте.
+- База в памяти (`r2dbc:h2:mem:///market`).
 
 ### Загрузка товаров
 
-Страница http://localhost:8080/admin/items принимает CSV-файл в UTF-8 с разделителем `;` и файлы изображений:
+Страница http://localhost:8080/admin/items (только `admin`) принимает CSV-файл в UTF-8 с разделителем `;`
+и файлы изображений:
 
 ```csv
 title;price;image;description
 Хоккейная шайба;350;puck.png;Официальная шайба
-Клюшка;4200;;Деревянная клюшка
 ```
 
-- `image` — имя загружаемого вместе со списком файла (может быть пустым);
-- `description` — последнее поле, может содержать `;`;
-- при ошибке в любой строке ни один товар не добавляется и ни одно изображение не сохраняется.
-
-Изображения сохраняются в каталог `market.images.dir` (по умолчанию `./uploaded-images`,
-в Docker — `/app/uploaded-images`), размер файла — до 10 МБ.
+При ошибке в любой строке ни один товар не добавляется и ни одно изображение не сохраняется.
 
 ## Требования
 
@@ -223,8 +259,6 @@ title;price;image;description
 Maven устанавливать не нужно — в проекте есть Maven Wrapper (`mvnw`).
 
 ## Сборка
-
-Сборка всего мультипроекта с тестами (генерация кода по OpenAPI выполняется автоматически):
 
 ```bash
 ./mvnw clean verify
@@ -236,13 +270,8 @@ Maven устанавливать не нужно — в проекте есть 
 ./mvnw clean package -DskipTests
 ```
 
-Отдельный модуль:
-
-```bash
-./mvnw -pl payment-service -am package
-```
-
-Готовые Executable JAR: `market-app/target/my-market-app.jar` и `payment-service/target/payment-service.jar`.
+Готовые Executable JAR: `market-app/target/my-market-app.jar`, `payment-service/target/payment-service.jar`,
+`auth-server/target/auth-server.jar`.
 
 ## Тесты
 
@@ -254,37 +283,40 @@ Maven устанавливать не нужно — в проекте есть 
 
 ### market-app
 
-| Уровень | Инструменты | Классы |
+| Уровень | Инструменты | Что проверяется |
 |---|---|---|
-| Модульные | JUnit 5, Mockito, `StepVerifier` | `*ServiceTest`, `ItemCacheTest`, `ItemGridTest` |
-| Доступ к данным | `@DataR2dbcTest` | `*RepositoryTest` |
-| Веб-слой | `@WebFluxTest`, `WebTestClient` | `*ControllerTest` |
-| Интеграционные | `@SpringBootTest`, `WebTestClient`, Redis в Testcontainers, MockWebServer | `*IntegrationTest`, `MyMarketAppApplicationTests` |
+| Модульные | JUnit 5, Mockito, `StepVerifier` | сервисы с привязкой к пользователю, `MarketUserDetailsService`, `ClientCredentialsExchangeFilter` (Bearer-токен, сброс при `401`), разбор ошибок OAuth2 и сервиса платежей |
+| Доступ к данным | `@DataR2dbcTest` | корзина и заказы разных пользователей, уникальность логина, ограничения БД |
+| Веб-слой | `@WebFluxTest`, `WebTestClient`, Spring Security Test (`mockAuthentication`, `csrf`) | доступ анонимного пользователя, пользователя и администратора, скрытие кнопок в HTML, CSRF, выход с удалением кук |
+| Интеграционные | `@SpringBootTest`, Redis в Testcontainers, MockWebServer | вход по форме с паролем из БД и выход, изоляция корзин и заказов, запросы в сервис платежей с токеном Client Credentials, кеширование в Redis |
 
-- `ItemCacheIntegrationTest` проверяет кеширование на настоящем Redis:
-  - загрузку из БД при промахе и запись с TTL;
-  - что витрина, карточка и корзина отдают данные из кеша после изменения БД;
-  - частичные попадания в кеш и сброс кеша списка.
-- `PaymentIntegrationTest` проверяет HTTP-запросы в сервис платежей: запрос баланса со страницы корзины,
-  тело платежа при покупке, отсутствие открытой транзакции БД в момент оплаты, отказ в оплате (`409`),
-  отклонённый как некорректный запрос (`400`/`404` — не выдаётся за недоступность сервиса)
-  и недоступность сервиса (заказ не создаётся).
-  Сервис платежей заменён заглушкой `PaymentServerStub` на MockWebServer: она ведёт баланс
-  и записывает запросы.
+`PaymentServerStub` на MockWebServer одновременно играет роль сервера авторизации и сервиса платежей:
 
-Для кеширования контекстов у каждого вида тестов есть базовый класс в пакете `support`
-(`RepositoryTestBase`, `ControllerTestBase`, `IntegrationTestBase`) со всей конфигурацией.
-Наследники её не меняют, поэтому весь прогон поднимает три контекста Spring. Контейнер Redis и заглушка
-сервиса платежей статические и живут всю JVM, чтобы закешированный контекст оставался рабочим.
-Перед каждым интеграционным тестом Redis очищается, а после теста удаляются созданные им данные.
+- выдаёт токены на `/oauth2/token`, проверяя Basic-аутентификацию клиента, grant type и scope;
+- принимает запросы к `/api/**` только с выданным им токеном;
+- ведёт счета пользователей.
+
+Так проверяется весь поток Client Credentials: запрос токена, его повторное использование, получение нового
+токена после отказа и ошибка, если клиент не авторизован.
 
 ### payment-service
 
-| Уровень | Классы |
-|---|---|
-| Модульные | `AccountServiceTest`: списание, нехватка средств, параллельные платежи |
-| Веб-слой | `PaymentsApiControllerTest`: `@WebFluxTest` сгенерированного контроллера с реализацией делегата |
-| Интеграционные | `PaymentServiceIntegrationTest`: `@SpringBootTest` на случайном порту |
+- **`AccountServiceTest`:** раздельные счета, списание, параллельные платежи.
+- **`PaymentsApiControllerTest`:** `@WebFluxTest` сгенерированного контроллера с `mockJwt()`: `401` без токена,
+  `403` без scope.
+- **`PaymentServiceIntegrationTest`:** `@SpringBootTest` на случайном порту с настоящими JWT. Токены подписываются
+  тестовым RSA-ключом, JWKS отдаёт MockWebServer. Проверяются чужой ключ, просроченный токен, чужой
+  издатель, чужая аудитория и отсутствие scope.
+
+### auth-server
+
+- **`ResourceAudienceTokenCustomizerTest`:** аудитория в токене по выданным scope.
+- **`AuthServerIntegrationTest`:** выдача токена по Client Credentials, его claims (`sub`, `aud`, `scope`,
+  `iss`, срок жизни), отказ при неверном секрете, неизвестном клиенте, чужом scope и grant type, публикация
+  JWKS и метаданных.
+
+Для кеширования контекстов у каждого вида тестов витрины есть базовый класс в пакете `support` со всей
+конфигурацией. За прогон витрины поднимаются три контекста Spring.
 
 ## Запуск локально
 
@@ -294,57 +326,46 @@ Maven устанавливать не нужно — в проекте есть 
    docker run -d --name market-redis -p 6379:6379 redis:7.4-alpine
    ```
 
-2. Собрать проект и запустить сервис платежей:
+2. Собрать проект:
 
    ```bash
    ./mvnw clean package -DskipTests
+   ```
+
+3. Запустить сервер авторизации, сервис платежей и витрину, каждый в своём терминале:
+
+   ```bash
+   java -jar auth-server/target/auth-server.jar
    ```
 
    ```bash
    java -jar payment-service/target/payment-service.jar
    ```
 
-3. В другом терминале запустить витрину:
-
    ```bash
    java -jar market-app/target/my-market-app.jar
    ```
 
-4. Открыть http://localhost:8080.
+4. Открыть http://localhost:8080 и войти как `alice` / `alice123`.
 
-Из IntelliJ IDEA: открыть корневой `pom.xml` как проект, выполнить `mvn generate-sources` (или Build),
-включить annotation processing для Lombok и запустить `PaymentServiceApplication` и `MyMarketAppApplication`.
-
-Порты и адреса меняются параметрами, например
-`--server.port=9090 --market.payment.base-url=http://localhost:8081 --spring.data.redis.host=localhost`.
+Из IntelliJ IDEA: открыть корневой `pom.xml` как проект, выполнить `mvn generate-sources`, включить
+annotation processing для Lombok и запустить `AuthServerApplication`, `PaymentServiceApplication`
+и `MyMarketAppApplication`.
 
 ## Запуск в Docker Compose
-
-Собрать образы и запустить Redis, сервис платежей и витрину:
 
 ```bash
 docker compose up --build
 ```
 
 - Витрина: http://localhost:8080
-- Сервис платежей: http://localhost:8081/api/balance
+- Сервис платежей: http://localhost:8081 (API только с токеном, `/actuator/health` открыт)
+- Сервер авторизации: http://localhost:9000/.well-known/oauth-authorization-server
 
-У Redis и сервиса платежей есть healthcheck (`redis-cli ping` и `GET /api/balance`). Витрина
-запускается только после того, как оба сервиса стали `healthy` (`depends_on` с `condition: service_healthy`),
-поэтому при старте она сразу может получить баланс и работать с кешем.
-
-Остановить и удалить контейнеры:
+У Redis, сервера авторизации и сервиса платежей есть healthcheck. Сервис платежей ждёт готовности сервера
+авторизации, а витрина — готовности всех трёх сервисов. Внутри сети Compose издатель токенов —
+`http://auth-server:9000`.
 
 ```bash
 docker compose down
-```
-
-Контейнеры можно запускать и по отдельности. Образы собираются из корня проекта:
-
-```bash
-docker build -f payment-service/Dockerfile -t payment-service .
-```
-
-```bash
-docker build -f market-app/Dockerfile -t my-market-app .
 ```
