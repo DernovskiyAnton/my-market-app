@@ -20,44 +20,47 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ItemCache itemCache;
 
-    public Flux<CartLine> getCartLines() {
-        return cartItemRepository.findAllByOrderByIdAsc()
+    public Flux<CartLine> getCartLines(long userId) {
+        return cartItemRepository.findAllByUserIdOrderByIdAsc(userId)
                 .collectList()
                 .flatMapMany(this::toCartLines);
     }
 
-    public Mono<CartDto> getCart() {
-        return getCartLines()
+    public Mono<CartDto> getCart(long userId) {
+        return getCartLines(userId)
                 .map(line -> ItemMapper.toDto(line.item(), line.quantity()))
                 .collectList()
                 .map(items -> new CartDto(items, items.stream().mapToLong(item -> item.price() * item.count()).sum()));
     }
 
-    public Mono<Map<Long, Integer>> getQuantities(Collection<Long> itemIds) {
-        if (itemIds.isEmpty()) {
+    public Mono<Map<Long, Integer>> getQuantities(Long userId, Collection<Long> itemIds) {
+        if (userId == null || itemIds.isEmpty()) {
             return Mono.just(Map.of());
         }
-        return cartItemRepository.findAllByItemIdIn(itemIds)
+        return cartItemRepository.findAllByUserIdAndItemIdIn(userId, itemIds)
                 .collectMap(CartItem::getItemId, CartItem::getQuantity);
     }
 
-    public Mono<Integer> getQuantity(long itemId) {
-        return cartItemRepository.findByItemId(itemId)
+    public Mono<Integer> getQuantity(Long userId, long itemId) {
+        if (userId == null) {
+            return Mono.just(0);
+        }
+        return cartItemRepository.findByUserIdAndItemId(userId, itemId)
                 .map(CartItem::getQuantity)
                 .defaultIfEmpty(0);
     }
 
     @Transactional
-    public Mono<Void> changeQuantity(long itemId, CartAction action) {
+    public Mono<Void> changeQuantity(long userId, long itemId, CartAction action) {
         return itemCache.getCard(itemId).hasElement()
                 .flatMap(exists -> exists
-                        ? applyAction(itemId, action)
+                        ? applyAction(userId, itemId, action)
                         : Mono.error(NotFoundException.item(itemId)));
     }
 
     @Transactional
-    public Mono<Void> clear() {
-        return cartItemRepository.deleteAll();
+    public Mono<Void> clear(long userId) {
+        return cartItemRepository.deleteAllByUserId(userId);
     }
 
     private Flux<CartLine> toCartLines(List<CartItem> cartItems) {
@@ -71,26 +74,26 @@ public class CartService {
                         .map(cartItem -> new CartLine(cards.get(cartItem.getItemId()), cartItem.getQuantity())));
     }
 
-    private Mono<Void> applyAction(long itemId, CartAction action) {
+    private Mono<Void> applyAction(long userId, long itemId, CartAction action) {
         return switch (action) {
-            case PLUS -> increment(itemId);
-            case MINUS -> decrement(itemId);
-            case DELETE -> cartItemRepository.findByItemId(itemId).flatMap(cartItemRepository::delete);
+            case PLUS -> increment(userId, itemId);
+            case MINUS -> decrement(userId, itemId);
+            case DELETE -> cartItemRepository.findByUserIdAndItemId(userId, itemId).flatMap(cartItemRepository::delete);
         };
     }
 
-    private Mono<Void> increment(long itemId) {
-        return cartItemRepository.findByItemId(itemId)
+    private Mono<Void> increment(long userId, long itemId) {
+        return cartItemRepository.findByUserIdAndItemId(userId, itemId)
                 .flatMap(cartItem -> {
                     cartItem.setQuantity(cartItem.getQuantity() + 1);
                     return cartItemRepository.save(cartItem);
                 })
-                .switchIfEmpty(Mono.defer(() -> cartItemRepository.save(new CartItem(itemId, 1))))
+                .switchIfEmpty(Mono.defer(() -> cartItemRepository.save(new CartItem(userId, itemId, 1))))
                 .then();
     }
 
-    private Mono<Void> decrement(long itemId) {
-        return cartItemRepository.findByItemId(itemId)
+    private Mono<Void> decrement(long userId, long itemId) {
+        return cartItemRepository.findByUserIdAndItemId(userId, itemId)
                 .flatMap(cartItem -> {
                     if (cartItem.getQuantity() > 1) {
                         cartItem.setQuantity(cartItem.getQuantity() - 1);
