@@ -27,7 +27,7 @@ class ItemImportControllerTest extends ControllerTestBase {
 
     @Test
     void getImportPage_rendersForm() {
-        webTestClient.get().uri("/admin/items").exchange()
+        asAdmin().get().uri("/admin/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains("Загрузка товаров на витрину").doesNotContain("alert-"));
@@ -35,7 +35,7 @@ class ItemImportControllerTest extends ControllerTestBase {
 
     @Test
     void getImportPage_afterImport_showsMessage() {
-        webTestClient.get().uri("/admin/items?imported=3").exchange()
+        asAdmin().get().uri("/admin/items?imported=3").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).contains("Добавлено товаров: 3"));
     }
@@ -44,7 +44,7 @@ class ItemImportControllerTest extends ControllerTestBase {
     void importItems_success_redirectsWithImportedCount() {
         when(itemImportService.importItems(any(), anyList())).thenReturn(Mono.just(2));
 
-        webTestClient.post().uri("/admin/items/import")
+        asAdmin().post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipart(true)))
                 .exchange()
@@ -59,7 +59,7 @@ class ItemImportControllerTest extends ControllerTestBase {
     void importItems_withoutImages_passesEmptyList() {
         when(itemImportService.importItems(any(), anyList())).thenReturn(Mono.just(1));
 
-        webTestClient.post().uri("/admin/items/import")
+        asAdmin().post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipart(false)))
                 .exchange()
@@ -73,7 +73,7 @@ class ItemImportControllerTest extends ControllerTestBase {
         when(itemImportService.importItems(any(), anyList()))
                 .thenReturn(Mono.error(new ItemImportException("Строка 1: ошибка")));
 
-        webTestClient.post().uri("/admin/items/import")
+        asAdmin().post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipart(false)))
                 .exchange()
@@ -87,7 +87,7 @@ class ItemImportControllerTest extends ControllerTestBase {
         when(itemImportService.importItems(any(), anyList()))
                 .thenReturn(Mono.error(new DataBufferLimitException("too large")));
 
-        webTestClient.post().uri("/admin/items/import")
+        asAdmin().post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipart(false)))
                 .exchange()
@@ -101,7 +101,7 @@ class ItemImportControllerTest extends ControllerTestBase {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("images", new byte[]{1}).filename("ball.png");
 
-        webTestClient.post().uri("/admin/items/import")
+        asAdmin().post().uri("/admin/items/import")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(builder.build()))
                 .exchange()
@@ -121,5 +121,27 @@ class ItemImportControllerTest extends ControllerTestBase {
             builder.part("images", new byte[]{1}).filename("ball.png").contentType(MediaType.IMAGE_PNG);
         }
         return builder.build();
+    }
+
+    @Test
+    void importPages_regularUser_isRedirectedToAccessDenied() {
+        asAlice().get().uri("/admin/items").exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/access-denied");
+        asAlice().post().uri("/admin/items/import")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData(multipart(false)))
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/access-denied");
+
+        verifyNoInteractions(itemImportService);
+    }
+
+    @Test
+    void importPages_anonymous_isRedirectedToLogin() {
+        webTestClient.get().uri("/admin/items").exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/login?required");
     }
 }

@@ -23,10 +23,10 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void getCart_enoughFunds_rendersItemsTotalAndBuyButton() {
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
-        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.enoughFunds(8000)));
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability("alice", 5000)).thenReturn(Mono.just(PaymentAvailability.enoughFunds(8000)));
 
-        webTestClient.get().uri("/cart/items").exchange()
+        asAlice().get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains("Футбольный мяч", "<span>2</span>", "Итого: 5000 руб.",
@@ -36,10 +36,10 @@ class CartControllerTest extends ControllerTestBase {
     @Test
     void getCart_insufficientFunds_hidesBuyButtonAndShowsMessage() {
         PaymentAvailability availability = PaymentAvailability.insufficientFunds(1000, 5000);
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
-        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(availability));
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability("alice", 5000)).thenReturn(Mono.just(availability));
 
-        webTestClient.get().uri("/cart/items").exchange()
+        asAlice().get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains(availability.message(), "Баланс: 1000 руб.")
@@ -48,10 +48,10 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void getCart_paymentServiceUnavailable_hidesBuyButtonAndShowsMessage() {
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
-        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.serviceUnavailable()));
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability("alice", 5000)).thenReturn(Mono.just(PaymentAvailability.serviceUnavailable()));
 
-        webTestClient.get().uri("/cart/items").exchange()
+        asAlice().get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains(PaymentUnavailableException.MESSAGE)
@@ -60,10 +60,10 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void getCart_paymentRequestRejected_hidesBuyButtonAndShowsMessage() {
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
-        when(paymentService.checkAvailability(5000)).thenReturn(Mono.just(PaymentAvailability.requestRejected()));
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(BALL), 5000)));
+        when(paymentService.checkAvailability("alice", 5000)).thenReturn(Mono.just(PaymentAvailability.requestRejected()));
 
-        webTestClient.get().uri("/cart/items").exchange()
+        asAlice().get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(html -> assertThat(html).contains(PaymentClientErrorException.MESSAGE)
@@ -72,9 +72,9 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void getCart_empty_hidesBuyButtonWithoutCallingPaymentService() {
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(), 0)));
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(), 0)));
 
-        webTestClient.get().uri("/cart/items").exchange()
+        asAlice().get().uri("/cart/items").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).doesNotContain("Купить"));
         verifyNoInteractions(paymentService);
@@ -82,23 +82,23 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void changeCartItem_appliesActionAndRendersCart() {
-        when(cartService.changeQuantity(1L, CartAction.DELETE)).thenReturn(Mono.empty());
-        when(cartService.getCart()).thenReturn(Mono.just(new CartDto(List.of(), 0)));
+        when(cartService.changeQuantity(ALICE.getId(), 1L, CartAction.DELETE)).thenReturn(Mono.empty());
+        when(cartService.getCart(ALICE.getId())).thenReturn(Mono.just(new CartDto(List.of(), 0)));
 
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("id", "1").with("action", "DELETE"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).doesNotContain("Мяч"));
 
-        verify(cartService).changeQuantity(1L, CartAction.DELETE);
+        verify(cartService).changeQuantity(ALICE.getId(), 1L, CartAction.DELETE);
     }
 
     @Test
     void changeCartItem_unknownItem_returnsNotFound() {
-        when(cartService.changeQuantity(99L, CartAction.PLUS)).thenReturn(Mono.error(NotFoundException.item(99L)));
+        when(cartService.changeQuantity(ALICE.getId(), 99L, CartAction.PLUS)).thenReturn(Mono.error(NotFoundException.item(99L)));
 
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("id", "99").with("action", "PLUS"))
                 .exchange()
                 .expectStatus().isNotFound();
@@ -106,14 +106,28 @@ class CartControllerTest extends ControllerTestBase {
 
     @Test
     void changeCartItem_invalidParams_returnsBadRequest() {
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("action", "PLUS"))
                 .exchange()
                 .expectStatus().isBadRequest();
-        webTestClient.post().uri("/cart/items")
+        asAlice().post().uri("/cart/items")
                 .body(BodyInserters.fromFormData("id", "abc").with("action", "PLUS"))
                 .exchange()
                 .expectStatus().isBadRequest();
+
+        verifyNoInteractions(cartService, paymentService);
+    }
+
+    @Test
+    void cartPages_anonymous_areRedirectedToLogin() {
+        webTestClient.get().uri("/cart/items").exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/login?required");
+        anonymousWithCsrf().post().uri("/cart/items")
+                .body(BodyInserters.fromFormData("id", "1").with("action", "PLUS"))
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/login?required");
 
         verifyNoInteractions(cartService, paymentService);
     }

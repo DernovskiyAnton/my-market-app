@@ -3,6 +3,7 @@ package ru.yandex.practicum.mymarket.item;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.reactive.function.BodyInserters;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.cart.CartAction;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockAuthentication;
 
 class ItemControllerTest extends ControllerTestBase {
 
@@ -28,7 +30,7 @@ class ItemControllerTest extends ControllerTestBase {
 
     @Test
     void getItems_withDefaults_rendersFirstPage() {
-        when(itemService.findItems("", SortType.NO, 1, 5))
+        when(itemService.findItems(null, "", SortType.NO, 1, 5))
                 .thenReturn(Mono.just(new PageImpl<>(List.of(BALL), PageRequest.of(0, 5), 1)));
 
         String html = getHtml("/");
@@ -38,8 +40,34 @@ class ItemControllerTest extends ControllerTestBase {
     }
 
     @Test
+    void getItems_anonymous_hidesCartControlsAndPrivateLinks() {
+        when(itemService.findItems(null, "", SortType.NO, 1, 5))
+                .thenReturn(Mono.just(new PageImpl<>(List.of(BALL), PageRequest.of(0, 5), 1)));
+
+        String html = getHtml("/items");
+
+        assertThat(html).contains("Войдите, чтобы купить", "href=\"/login\"");
+        assertThat(html).doesNotContain("value=\"PLUS\"", "value=\"MINUS\"", "href=\"/cart/items\"",
+                "href=\"/orders\"", "href=\"/admin/items\"", "Выйти");
+    }
+
+    @Test
+    void getItems_authenticated_showsCartControlsForCurrentUser() {
+        when(itemService.findItems(ALICE.getId(), "", SortType.NO, 1, 5))
+                .thenReturn(Mono.just(new PageImpl<>(List.of(BALL), PageRequest.of(0, 5), 1)));
+
+        String html = asAlice().get().uri("/items").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(html).contains("value=\"PLUS\"", "value=\"MINUS\"", "href=\"/cart/items\"", "href=\"/orders\"",
+                "Выйти", "alice", "name=\"_csrf\"");
+        assertThat(html).doesNotContain("Войдите, чтобы купить", "href=\"/admin/items\"");
+    }
+
+    @Test
     void getItems_withParams_passesThemToServiceAndRendersPaging() {
-        when(itemService.findItems("мяч", SortType.PRICE, 2, 2))
+        when(itemService.findItems(null, "мяч", SortType.PRICE, 2, 2))
                 .thenReturn(Mono.just(new PageImpl<>(List.of(BALL, ROPE), PageRequest.of(1, 2), 6)));
 
         String html = getHtml("/items?search=мяч&sort=PRICE&pageNumber=2&pageSize=2");
@@ -67,14 +95,14 @@ class ItemControllerTest extends ControllerTestBase {
         webTestClient.get().uri("/items?pageSize=abc").exchange()
                 .expectStatus().isBadRequest();
 
-        verify(itemService, never()).findItems(anyString(), any(), anyInt(), anyInt());
+        verify(itemService, never()).findItems(any(), anyString(), any(), anyInt(), anyInt());
     }
 
     @Test
     void changeCartItemFromCatalog_redirectsBackWithParams() {
-        when(cartService.changeQuantity(1L, CartAction.PLUS)).thenReturn(Mono.empty());
+        when(cartService.changeQuantity(ALICE.getId(), 1L, CartAction.PLUS)).thenReturn(Mono.empty());
 
-        webTestClient.post().uri("/items")
+        asAlice().post().uri("/items")
                 .body(BodyInserters.fromFormData("id", "1")
                         .with("action", "PLUS")
                         .with("search", "мяч")
@@ -85,14 +113,14 @@ class ItemControllerTest extends ControllerTestBase {
                 .expectStatus().is3xxRedirection()
                 .expectHeader().location("/items?search=%D0%BC%D1%8F%D1%87&sort=ALPHA&pageNumber=3&pageSize=10");
 
-        verify(cartService).changeQuantity(1L, CartAction.PLUS);
+        verify(cartService).changeQuantity(ALICE.getId(), 1L, CartAction.PLUS);
     }
 
     @Test
     void changeCartItemFromCatalog_withoutOptionalParams_usesDefaults() {
-        when(cartService.changeQuantity(1L, CartAction.MINUS)).thenReturn(Mono.empty());
+        when(cartService.changeQuantity(ALICE.getId(), 1L, CartAction.MINUS)).thenReturn(Mono.empty());
 
-        webTestClient.post().uri("/items?id=1&action=MINUS")
+        asAlice().post().uri("/items?id=1&action=MINUS")
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader().location("/items?search=&sort=NO&pageNumber=1&pageSize=5");
@@ -100,7 +128,7 @@ class ItemControllerTest extends ControllerTestBase {
 
     @Test
     void changeCartItemFromCatalog_withoutAction_returnsBadRequest() {
-        webTestClient.post().uri("/items")
+        asAlice().post().uri("/items")
                 .body(BodyInserters.fromFormData("id", "1"))
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -109,16 +137,28 @@ class ItemControllerTest extends ControllerTestBase {
     }
 
     @Test
-    void getItem_rendersItemPage() {
-        when(itemService.getItem(1L)).thenReturn(Mono.just(BALL));
+    void getItem_anonymous_rendersItemPageWithoutCartControls() {
+        when(itemService.getItem(null, 1L)).thenReturn(Mono.just(BALL));
 
-        assertThat(getHtml("/items/1")).contains("Футбольный мяч", "2500 руб.", "<span>2</span>",
-                "action=\"/items/1\"");
+        assertThat(getHtml("/items/1")).contains("Футбольный мяч", "2500 руб.", "Войдите, чтобы купить")
+                .doesNotContain("action=\"/items/1\"", "value=\"PLUS\"");
+    }
+
+    @Test
+    void getItem_authenticated_rendersCartControlsWithCountInCart() {
+        when(itemService.getItem(ALICE.getId(), 1L)).thenReturn(Mono.just(BALL));
+
+        String html = asAlice().get().uri("/items/1").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(html).contains("Футбольный мяч", "<span>2</span>", "action=\"/items/1\"", "name=\"_csrf\"")
+                .doesNotContain("Войдите, чтобы купить");
     }
 
     @Test
     void getItem_unknownId_rendersNotFoundPage() {
-        when(itemService.getItem(99L)).thenReturn(Mono.error(NotFoundException.item(99L)));
+        when(itemService.getItem(null, 99L)).thenReturn(Mono.error(NotFoundException.item(99L)));
 
         webTestClient.get().uri("/items/99").exchange()
                 .expectStatus().isNotFound()
@@ -127,26 +167,54 @@ class ItemControllerTest extends ControllerTestBase {
 
     @Test
     void changeCartItemFromItemPage_rendersUpdatedItem() {
-        when(cartService.changeQuantity(1L, CartAction.MINUS)).thenReturn(Mono.empty());
-        when(itemService.getItem(1L)).thenReturn(Mono.just(BALL));
+        when(cartService.changeQuantity(ALICE.getId(), 1L, CartAction.MINUS)).thenReturn(Mono.empty());
+        when(itemService.getItem(ALICE.getId(), 1L)).thenReturn(Mono.just(BALL));
 
-        webTestClient.post().uri("/items/1")
+        asAlice().post().uri("/items/1")
                 .body(BodyInserters.fromFormData("action", "MINUS"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).value(html -> assertThat(html).contains("Футбольный мяч", "<span>2</span>"));
 
-        verify(cartService).changeQuantity(1L, CartAction.MINUS);
+        verify(cartService).changeQuantity(ALICE.getId(), 1L, CartAction.MINUS);
     }
 
     @Test
     void changeCartItemFromItemPage_unknownId_returnsNotFound() {
-        when(cartService.changeQuantity(99L, CartAction.PLUS)).thenReturn(Mono.error(NotFoundException.item(99L)));
+        when(cartService.changeQuantity(ALICE.getId(), 99L, CartAction.PLUS)).thenReturn(Mono.error(NotFoundException.item(99L)));
 
-        webTestClient.post().uri("/items/99")
+        asAlice().post().uri("/items/99")
                 .body(BodyInserters.fromFormData("action", "PLUS"))
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    @Test
+    void changeCartItem_anonymous_isRedirectedToLogin() {
+        anonymousWithCsrf().post().uri("/items")
+                .body(BodyInserters.fromFormData("id", "1").with("action", "PLUS"))
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/login?required");
+        anonymousWithCsrf().post().uri("/items/1")
+                .body(BodyInserters.fromFormData("action", "PLUS"))
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().location("/login?required");
+
+        verifyNoInteractions(cartService);
+    }
+
+    @Test
+    void changeCartItem_withoutCsrfToken_isForbidden() {
+        webTestClient.mutateWith(mockAuthentication(new UsernamePasswordAuthenticationToken(ALICE, null,
+                        ALICE.getAuthorities())))
+                .post().uri("/items")
+                .body(BodyInserters.fromFormData("id", "1").with("action", "PLUS"))
+                .exchange()
+                .expectStatus().isForbidden();
+
+        verifyNoInteractions(cartService);
     }
 
     private String getHtml(String uri) {
