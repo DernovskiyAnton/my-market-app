@@ -1,19 +1,24 @@
 openapi: 3.0.3
 info:
   title: Payment Service API
-  description: API сервиса платежей витрины интернет-магазина
-  version: 1.0.0
+  description: API сервиса платежей витрины интернет-магазина. Счета привязаны к пользователям витрины,
+    доступ только для клиентов, авторизованных по OAuth2 (Client Credentials Flow) со scope payments.
+  version: 2.0.0
 servers:
   - url: http://localhost:8081
+security:
+  - oauth2: [payments]
 tags:
   - name: payments
     description: Баланс счёта и платежи
 paths:
-  /api/balance:
+  /api/accounts/{username}/balance:
+    parameters:
+      - $ref: '#/components/parameters/Username'
     get:
       tags:
         - payments
-      summary: Получить текущий баланс счёта
+      summary: Получить текущий баланс счёта пользователя
       operationId: getBalance
       responses:
         '200':
@@ -22,11 +27,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Balance'
-  /api/payments:
+        '400':
+          description: Некорректное имя пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/accounts/{username}/payments:
+    parameters:
+      - $ref: '#/components/parameters/Username'
     post:
       tags:
         - payments
-      summary: Оплатить заказ списанием суммы с баланса
+      summary: Оплатить заказ списанием суммы с баланса счёта пользователя
       operationId: pay
       requestBody:
         required: true
@@ -47,6 +64,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           description: Недостаточно средств на балансе, платёж не проведён
           content:
@@ -54,6 +75,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Токен сервера авторизации, выданный клиенту по Client Credentials Flow
+      flows:
+        clientCredentials:
+          tokenUrl: http://localhost:9000/oauth2/token
+          scopes:
+            payments: Проверка баланса и проведение платежей
+  parameters:
+    Username:
+      name: username
+      in: path
+      required: true
+      description: Логин пользователя витрины, которому принадлежит счёт
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_.-]{1,50}$'
+        example: alice
+  responses:
+    Unauthorized:
+      description: Токен доступа отсутствует, просрочен или недействителен
+    Forbidden:
+      description: У токена нет scope payments или аудитории payment-service
   schemas:
     Balance:
       type: object
