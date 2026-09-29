@@ -27,11 +27,15 @@ class OrderRepositoryTest extends RepositoryTestBase {
     @Autowired
     private ItemRepository itemRepository;
 
+    private Long alice;
+    private Long bob;
     private Item ball;
     private Item rope;
 
     @BeforeEach
     void setUp() {
+        alice = createUser("alice");
+        bob = createUser("bob");
         ball = itemRepository.save(new Item("Мяч", "", null, 100)).block();
         rope = itemRepository.save(new Item("Скакалка", "", null, 50)).block();
     }
@@ -67,8 +71,23 @@ class OrderRepositoryTest extends RepositoryTestBase {
         Long older = saveOrder(100, new OrderItem(ItemMapper.toCard(ball), 1));
         Long newer = saveOrder(200, new OrderItem(ItemMapper.toCard(ball), 2));
 
-        StepVerifier.create(orderRepository.findAllByOrderByIdDesc().map(Order::getId))
+        StepVerifier.create(orderRepository.findAllByUserIdOrderByIdDesc(alice).map(Order::getId))
                 .expectNext(newer, older)
+                .verifyComplete();
+    }
+
+    @Test
+    void userQueries_returnOnlyOrdersOfThatUser() {
+        Long aliceOrder = saveOrder(alice, 100, new OrderItem(ItemMapper.toCard(ball), 1));
+        Long bobOrder = saveOrder(bob, 50, new OrderItem(ItemMapper.toCard(rope), 1));
+
+        StepVerifier.create(orderRepository.findAllByUserIdOrderByIdDesc(bob).map(Order::getId))
+                .expectNext(bobOrder)
+                .verifyComplete();
+        StepVerifier.create(orderRepository.findByIdAndUserId(aliceOrder, alice).map(Order::getId))
+                .expectNext(aliceOrder)
+                .verifyComplete();
+        StepVerifier.create(orderRepository.findByIdAndUserId(aliceOrder, bob))
                 .verifyComplete();
     }
 
@@ -86,7 +105,11 @@ class OrderRepositoryTest extends RepositoryTestBase {
     }
 
     private Long saveOrder(long totalSum, OrderItem... items) {
-        return orderRepository.save(new Order(LocalDateTime.now(), totalSum))
+        return saveOrder(alice, totalSum, items);
+    }
+
+    private Long saveOrder(Long userId, long totalSum, OrderItem... items) {
+        return orderRepository.save(new Order(userId, LocalDateTime.now(), totalSum))
                 .flatMap(order -> Flux.just(items)
                         .doOnNext(item -> item.setOrderId(order.getId()))
                         .concatMap(orderItemRepository::save)
