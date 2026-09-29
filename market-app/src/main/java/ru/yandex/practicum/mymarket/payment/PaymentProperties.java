@@ -9,5 +9,7 @@ import java.time.Duration;
 
 @Validated
 @ConfigurationProperties("market.payment")
-public record PaymentProperties(@NotBlank String baseUrl, @NotNull Duration timeout) {
+public record PaymentProperties(@NotBlank String baseUrl,
+                                @NotNull Duration timeout,
+                                @NotBlank String clientRegistrationId) {
 }
