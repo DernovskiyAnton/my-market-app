@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.payment.client.api.PaymentsApi;
@@ -14,7 +14,7 @@ import ru.yandex.practicum.mymarket.payment.client.model.ErrorResponse;
 import ru.yandex.practicum.mymarket.payment.client.model.PaymentRequest;
 import ru.yandex.practicum.mymarket.payment.client.model.PaymentResult;
 
-import java.io.IOException;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -23,6 +23,9 @@ public class PaymentService {
 
     static final String PAYMENT_REJECTED_MESSAGE = "Оплата не прошла: недостаточно средств на балансе";
     static final String CLIENT_NOT_AUTHORIZED_MESSAGE = "витрина не авторизована на сервере авторизации";
+    private static final Set<String> CLIENT_REJECTION_ERROR_CODES = Set.of(
+            OAuth2ErrorCodes.INVALID_CLIENT, OAuth2ErrorCodes.UNAUTHORIZED_CLIENT, OAuth2ErrorCodes.INVALID_SCOPE,
+            OAuth2ErrorCodes.INVALID_GRANT, OAuth2ErrorCodes.UNSUPPORTED_GRANT_TYPE, OAuth2ErrorCodes.INVALID_REQUEST);
 
     private final PaymentsApi paymentsApi;
     private final PaymentProperties properties;
@@ -67,7 +70,7 @@ public class PaymentService {
         if (error instanceof PaymentUnavailableException || error instanceof PaymentClientErrorException) {
             return error;
         }
-        if (error instanceof OAuth2AuthorizationException authorization && !isConnectionFailure(error)) {
+        if (error instanceof OAuth2AuthorizationException authorization && isClientRejected(authorization)) {
             log.error("Cannot obtain access token for payment service: {}", authorization.getError());
             return new PaymentClientErrorException(HttpStatus.UNAUTHORIZED.value(),
                     CLIENT_NOT_AUTHORIZED_MESSAGE + " (" + authorization.getError().getErrorCode() + ")", error);
@@ -88,13 +91,8 @@ public class PaymentService {
         return new PaymentUnavailableException(error);
     }
 
-    private static boolean isConnectionFailure(Throwable error) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-            if (cause instanceof WebClientRequestException || cause instanceof IOException) {
-                return true;
-            }
-        }
-        return false;
+    private static boolean isClientRejected(OAuth2AuthorizationException error) {
+        return CLIENT_REJECTION_ERROR_CODES.contains(error.getError().getErrorCode());
     }
 
     private static String errorMessage(WebClientResponseException response) {
