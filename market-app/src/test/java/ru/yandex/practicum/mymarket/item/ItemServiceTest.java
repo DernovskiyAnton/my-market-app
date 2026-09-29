@@ -20,6 +20,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ItemServiceTest {
 
+    private static final Long USER_ID = 1L;
+
     private static final List<ItemSummary> CATALOG = List.of(
             new ItemSummary(1L, "Футбольный мяч", "Кожаный, размер 5", 2500),
             new ItemSummary(2L, "скакалка", "Скоростная", 600),
@@ -41,7 +43,7 @@ class ItemServiceTest {
         givenCatalog();
         givenCardsAndQuantities(List.of(1L, 2L), Map.of(2L, 3));
 
-        StepVerifier.create(itemService.findItems("", SortType.NO, 1, 2))
+        StepVerifier.create(itemService.findItems(USER_ID, "", SortType.NO, 1, 2))
                 .assertNext(page -> {
                     assertThat(page.getContent()).extracting(ItemDto::id).containsExactly(1L, 2L);
                     assertThat(page.getContent()).extracting(ItemDto::count).containsExactly(0, 3);
@@ -59,7 +61,7 @@ class ItemServiceTest {
         givenCatalog();
         givenCardsAndQuantities(List.of(3L, 1L), Map.of());
 
-        StepVerifier.create(itemService.findItems(" МЯЧ ", SortType.ALPHA, 1, 10))
+        StepVerifier.create(itemService.findItems(USER_ID, " МЯЧ ", SortType.ALPHA, 1, 10))
                 .assertNext(page -> {
                     assertThat(page.getContent()).extracting(ItemDto::title)
                             .containsExactly("Баскетбольный мяч", "Футбольный мяч");
@@ -68,7 +70,7 @@ class ItemServiceTest {
                 .verifyComplete();
 
         givenCardsAndQuantities(List.of(4L), Map.of());
-        StepVerifier.create(itemService.findItems("графит", SortType.NO, 1, 10))
+        StepVerifier.create(itemService.findItems(USER_ID, "графит", SortType.NO, 1, 10))
                 .assertNext(page -> assertThat(page.getContent()).extracting(ItemDto::id).containsExactly(4L))
                 .verifyComplete();
     }
@@ -78,7 +80,7 @@ class ItemServiceTest {
         givenCatalog();
         givenCardsAndQuantities(List.of(1L, 3L), Map.of());
 
-        StepVerifier.create(itemService.findItems("", SortType.PRICE, 2, 2))
+        StepVerifier.create(itemService.findItems(USER_ID, "", SortType.PRICE, 2, 2))
                 .assertNext(page -> {
                     assertThat(page.getContent()).extracting(ItemDto::price).containsExactly(2500L, 3200L);
                     assertThat(page.getNumber()).isEqualTo(1);
@@ -93,7 +95,7 @@ class ItemServiceTest {
         givenCatalog();
         givenCardsAndQuantities(List.of(3L, 5L, 4L, 2L, 1L), Map.of());
 
-        StepVerifier.create(itemService.findItems("", SortType.ALPHA, 1, 10))
+        StepVerifier.create(itemService.findItems(USER_ID, "", SortType.ALPHA, 1, 10))
                 .assertNext(page -> assertThat(page.getContent()).extracting(ItemDto::title).containsExactly(
                         "Баскетбольный мяч", "Бутылка", "Ракетка", "скакалка", "Футбольный мяч"))
                 .verifyComplete();
@@ -104,7 +106,7 @@ class ItemServiceTest {
         givenCatalog();
         givenCardsAndQuantities(List.of(), Map.of());
 
-        StepVerifier.create(itemService.findItems("", SortType.NO, 4, 2))
+        StepVerifier.create(itemService.findItems(USER_ID, "", SortType.NO, 4, 2))
                 .assertNext(page -> {
                     assertThat(page.getContent()).isEmpty();
                     assertThat(page.hasNext()).isFalse();
@@ -115,9 +117,9 @@ class ItemServiceTest {
     @Test
     void getItem_returnsCachedCardWithCartQuantity() {
         when(itemCache.getCard(1L)).thenReturn(Mono.just(card(1L, "Футбольный мяч", 2500)));
-        when(cartService.getQuantity(1L)).thenReturn(Mono.just(3));
+        when(cartService.getQuantity(USER_ID, 1L)).thenReturn(Mono.just(3));
 
-        StepVerifier.create(itemService.getItem(1L))
+        StepVerifier.create(itemService.getItem(USER_ID, 1L))
                 .expectNext(new ItemDto(1L, "Футбольный мяч", "Описание 1", "images/1.jpg", 2500, 3))
                 .verifyComplete();
     }
@@ -125,11 +127,24 @@ class ItemServiceTest {
     @Test
     void getItem_unknownId_returnsNotFound() {
         when(itemCache.getCard(99L)).thenReturn(Mono.empty());
-        when(cartService.getQuantity(99L)).thenReturn(Mono.just(0));
+        when(cartService.getQuantity(USER_ID, 99L)).thenReturn(Mono.just(0));
 
-        StepVerifier.create(itemService.getItem(99L))
+        StepVerifier.create(itemService.getItem(USER_ID, 99L))
                 .expectError(NotFoundException.class)
                 .verify();
+    }
+
+    @Test
+    void findItems_anonymous_requestsQuantitiesWithoutUser() {
+        givenCatalog();
+        List<Long> ids = List.of(1L, 2L);
+        when(itemCache.getCards(ids)).thenReturn(Mono.just(Map.of(1L, card(1L, "Футбольный мяч", 2500),
+                2L, card(2L, "скакалка", 600))));
+        when(cartService.getQuantities(null, ids)).thenReturn(Mono.just(Map.of()));
+
+        StepVerifier.create(itemService.findItems(null, "", SortType.NO, 1, 2))
+                .assertNext(page -> assertThat(page.getContent()).extracting(ItemDto::count).containsExactly(0, 0))
+                .verifyComplete();
     }
 
     private void givenCatalog() {
@@ -142,7 +157,7 @@ class ItemServiceTest {
                 .collect(Collectors.toMap(ItemSummary::id,
                         summary -> card(summary.id(), summary.title(), summary.price())));
         when(itemCache.getCards(ids)).thenReturn(Mono.just(cards));
-        when(cartService.getQuantities(ids)).thenReturn(Mono.just(quantities));
+        when(cartService.getQuantities(USER_ID, ids)).thenReturn(Mono.just(quantities));
     }
 
     private static ItemCard card(long id, String title, long price) {
