@@ -13,11 +13,12 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>my-market</name>
-	<description>Мультипроект: витрина интернет-магазина и сервис платежей</description>
+	<description>Мультипроект: витрина интернет-магазина, сервис платежей и сервер авторизации</description>
 
 	<modules>
 		<module>market-app</module>
 		<module>payment-service</module>
+		<module>auth-server</module>
 	</modules>
 
 	<properties>
